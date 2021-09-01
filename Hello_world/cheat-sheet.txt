@@ -3,7 +3,11 @@ $ docker run hello-golang
 $ docker image ls
 $ docker image rm hello-golang
 
-$ cd ../Given_code
-$ docker build -t kadlab .    # Alternativt kompilera testen med nytt namn
+# Alternativ 1: Kompilera Given_code
+	$ cd ../Given_code
+	$ docker build -t kadlab .
+# Alternativ 2: Kompilera hello world som kadlab
+	$ docker build -t kadlab .
+	$ cd ../Given_code
 $ docker stack deploy -c docker-compose.yml kadlab
 # Kolla i docker GUI:t att 5 hello world dyker upp
