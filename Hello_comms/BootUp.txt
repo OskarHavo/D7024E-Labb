@@ -1,4 +1,0 @@
-1 ) Open Powershell in Hello_Comms
-2 ) Run docker build -t kadlab .
-3 ) Run the Batch file
-4 ) See the nodes running in Docker Desktop
