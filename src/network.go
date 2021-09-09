@@ -42,7 +42,7 @@ func (network *Network) SendPingMessage(contact *Contact) {
 }
 
 func (network *Network) SendFindContactMessage(contact *Contact) {
-	//conn, err = net.Dial("udp", contact.Address + ":5001")
+	conn, err = net.Dial("udp", contact.Address + ":5001")
 }
 
 func (network *Network) SendFindDataMessage(hash string) {

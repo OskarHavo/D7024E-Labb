@@ -14,25 +14,25 @@ func CheckAndPrintError(err error) {
 	}
 }
 
-func Send() {
+func Send(port string) {
 	fmt.Println("[SEND] Running sender!")
 
 	for {
 		var conn net.Conn
 		var err error
-		var ap string
+		var ip string
 		for {
-			fmt.Println("[REC] Enter [ip-address:port] to ping: ")
+			fmt.Println("[REC] Enter [ip-address] to ping: ")
 			rawAP, inputErr := bufio.NewReader(os.Stdin).ReadString('\n')
 			CheckAndPrintError(inputErr)
-			ap = strings.Split(rawAP, "\n")[0]
+			ip = strings.Split(rawAP, "\n")[0]
 
-			fmt.Println("[REC] Establishing connection to " + ap)
-			conn, err = net.Dial("tcp", ap)
+			fmt.Println("[REC] Establishing connection to " + ip)
+			conn, err = net.Dial("tcp", ip + ":" + port)
 			if err == nil {
 				break
 			} else {
-				fmt.Println("[REC] Could not dial " + ap + ". Try again")
+				fmt.Println("[REC] Could not dial " + ip + ". Try again")
 				fmt.Println(err)
 			}
 		}
@@ -45,9 +45,9 @@ func Send() {
 
 		fReply := strings.Split(string(reply), "\n")
 		if fReply[0] == "Ack!" {
-			fmt.Println("[REC] Received ack from " + ap)
+			fmt.Println("[REC] Received ack from " + ip)
 		} else {
-			fmt.Println("[REC] Received unrecognized response from " + ap)
+			fmt.Println("[REC] Received unrecognized response from " + ip)
 		}
 
 		fmt.Println("[REC] Closing connection ...")
@@ -87,15 +87,7 @@ func Rec(port string) {
 }
 
 func main() {
-	/*
-	if len(os.Args[1:]) != 1 {
-		fmt.Println("Expected 1 arguments. Got:", len(os.Args[1:]))
-		os.Exit(-1)
-	}
-	*/
-
-	//args := os.Args[1:]
-	//go Rec(args[0])
-	go Rec("5001")
-	Send()
+	port := "5001"
+	go Rec(port)
+	Send(port)
 }
