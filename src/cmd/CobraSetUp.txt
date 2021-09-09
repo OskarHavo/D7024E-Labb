@@ -1,3 +1,0 @@
-1 ) go install github.com/spf13/cobra/cobra@latest
-2 ) cobra init --pkg-name CommandClient.go
-3 ) go run main.go
