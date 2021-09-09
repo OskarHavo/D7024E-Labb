@@ -1,16 +1,22 @@
 package d7024e
 
-type Kademlia struct {
+type Node struct {
+	storage map[KademliaID][]byte
 }
 
-func (kademlia *Kademlia) LookupContact(target *Contact) {
+func newNode() Node {
+	return Node{make(map[KademliaID][]byte)}
+}
+
+func (kademlia *Node) LookupContact(target *Contact) {
 	// TODO
 }
 
-func (kademlia *Kademlia) LookupData(hash string) {
+func (kademlia *Node) LookupData(hash KademliaID) {
 	// TODO
 }
 
-func (kademlia *Kademlia) Store(data []byte) {
-	// TODO
+func (kademlia *Node) Store(data []byte, hash KademliaID) {
+
+	kademlia.storage[hash] = data
 }
