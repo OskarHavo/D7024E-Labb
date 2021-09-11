@@ -8,8 +8,28 @@ import (
 	"time"
 )
 
-type Network struct {
+// Network messages
+// 2 bit message description:
+// 00: PING
+// 01: STORE
+// 10: FIND_NODE
+// 11: FIND_VALUE
+// Followed by a 20 byte ID of needed and data for STORE command
 
+// Golang doesn't have enums, this the closest alternative I could find
+const (
+	PING byte = iota // 0
+	STORE byte = iota // 1
+	FIND_NODE byte = iota // 2
+	FIND_VALUE byte = iota // 3
+)
+
+type Network struct {
+	local_node *Node
+}
+
+func NewNetwork(node *Node) Network {
+	return Network{node}
 }
 
 func Listen(ip string, port int) {
@@ -41,14 +61,48 @@ func (network *Network) SendPingMessage(contact *Contact) {
 	}
 }
 
+func (network *Network) NodeLookup(ID KademliaID) []Contact {
+	// TODO
+	// This will be the central node lookup algorithm that can be used to find nodes or data depending on
+	// the lookup ID. It will always try to locate the K closest nodes in the network and starts by sending
+	// udp messages and recursively locates nodes that are closer until no more nodes can be found. Each node
+	// will then receive these messages and search through their own routing table
+	return nil
+}
+
 func (network *Network) SendFindContactMessage(contact *Contact) {
 	conn, err = net.Dial("udp", contact.Address + ":5001")
 }
 
-func (network *Network) SendFindDataMessage(hash string) {
-	// TODO
+func (network *Network) SendFindDataMessage(hash KademliaID) {
+	// Prepare FIND_VALUE RPC
+	findMessage := make([]byte, 1)
+	findMessage[0] = FIND_VALUE
+	findMessage = append(findMessage, hash[:]...)
+
+	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
+	for _,contact := range nodes { // What type of syntax is this??
+		if network.local_node.routingTable.me.ID == contact.ID {
+			// No need to send a network request. Send the RPC directly to the local node thread.
+		} else {
+			// TODO Send a FIND_VALUE RPC
+		}
+	}
 }
 
-func (network *Network) SendStoreMessage(data []byte) {
-	// TODO
+func (network *Network) SendStoreMessage(hash KademliaID,data []byte) {
+	// Prepare STORE RPC
+	storeMessage := make([]byte, 1)
+	storeMessage[0] = STORE
+	storeMessage = append(storeMessage, hash[:]...)
+	storeMessage = append(storeMessage, data...)
+
+	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
+	for _,contact := range nodes { // What type of syntax is this??
+		if network.local_node.routingTable.me.ID == contact.ID {
+			// No need to send a network request. Send the RPC directly to the local node thread.
+		} else {
+			// TODO Send a STORE RPC
+		}
+	}
 }
