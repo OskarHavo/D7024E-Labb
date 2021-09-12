@@ -3,11 +3,6 @@ module d7024e
 go 1.17
 
 require (
-	github.com/spf13/cobra v1.2.1
-	github.com/spf13/viper v1.8.1
-)
-
-require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
