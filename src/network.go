@@ -55,7 +55,8 @@ func (network *Network) SendPingMessage(contact *Contact) {
 
 	fReply := strings.Split(string(reply), "\n")
 	if fReply[0] == "Ack!" {
-		fmt.Println("Pinging node " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(), 10) + " ms")
+		fmt.Println("Pinging node " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
+			10) + " ms")
 	} else {
 		fmt.Println("Received unrecognized response from node " + contact.ID.String() + " when pinged")
 	}
@@ -71,7 +72,7 @@ func (network *Network) NodeLookup(ID KademliaID) []Contact {
 }
 
 func (network *Network) SendFindContactMessage(contact *Contact) {
-	conn, err = net.Dial("udp", contact.Address + ":5001")
+	//conn, err := net.Dial("udp", contact.Address + ":5001")
 }
 
 func (network *Network) SendFindDataMessage(hash KademliaID) {
