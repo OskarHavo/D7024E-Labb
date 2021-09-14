@@ -9,62 +9,55 @@ import (
 	"strings"
 )
 
-func CheckAndPrintError(err error) {
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
 func main() {
 	hashmap := make(map[string]string) //temp for test
-
 	for {
-		// hashtable temp
-		var command string
-		var value string
-
 		fmt.Printf("\n Enter a command: ")
-
-		rawInput, inputErr := bufio.NewReader(os.Stdin).ReadString('\n') // Takes rawinput from console.
-		CheckAndPrintError(inputErr)
-
-		stringinput := strings.Fields(rawInput) //Splits the text into an array with each entry being a word
-
-		command = stringinput[0]
-		command = strings.ToLower(strings.Trim(command, " \r\n")) //Removes hidden \n etc, which makes string comparision impossible.
-
-		if len(stringinput) > 1 { // Checks if you have 1 or 2 Commands and then runs the correct function accordingly.
-			value = stringinput[1]
-			value = strings.ToLower(strings.Trim(value, " \r\n"))
-			handleDualInput(command, value, hashmap)
-		} else {
-			handleSingleInput(command)
-		}
+		rawInput, _ := bufio.NewReader(os.Stdin).ReadString('\n') // Takes rawinput from console.
+		output := parseInput(rawInput, hashmap)
+		fmt.Println(output)
 	}
 }
-func handleSingleInput(command string) {
+func parseInput(input string, hashmap map[string]string) string {
+	var command string
+	var value string
+
+	stringinput := strings.Fields(input) //Splits the text into an array with each entry being a word
+
+	command = stringinput[0]
+	command = strings.ToLower(strings.Trim(command, " \r\n")) //Removes hidden \n etc, which makes string comparision impossible.
+
+	if len(stringinput) > 1 { // Checks if you have 1 or 2 Commands and then runs the correct function accordingly.
+		value = stringinput[1]
+		value = strings.ToLower(strings.Trim(value, " \r\n"))
+		return handleDualInput(command, value, hashmap)
+	} else {
+		return handleSingleInput(command, 0)
+	}
+}
+func handleSingleInput(command string, testing int) string {
 
 	switch command {
 	case "exit":
-		exit()
+		return exit(testing)
 	case "help":
-		fmt.Println(help())
+		return help()
 	default:
-		fmt.Println("INVALID COMMAND, TYPE HELP")
+		return "INVALID COMMAND, TYPE HELP"
 	}
 }
-func handleDualInput(command string, value string, hashmap map[string]string) {
+func handleDualInput(command string, value string, hashmap map[string]string) string {
 
 	switch command {
 	case "put":
-		outputHash := put(value, hashmap)
-		fmt.Println(outputHash)
+		return put(value, hashmap)
 	case "get":
 		outputNodeID, outputContent := get(value, hashmap)
-		fmt.Println("NodeID: ", outputNodeID, "  Content: ", outputContent)
+		outputString := ("NodeID: " + outputNodeID + "  Content: " + outputContent)
+		return outputString
 
 	default:
-		fmt.Println("INVALID COMMAND, TYPE HELP")
+		return ("INVALID COMMAND, TYPE HELP")
 	}
 }
 
@@ -72,10 +65,8 @@ func handleDualInput(command string, value string, hashmap map[string]string) {
 // Check if it can be uploaded
 // if so, output the objects hash
 func put(content string, hashmap map[string]string) string {
-
 	hashedFileString := sha1Hash(content)
 	_, exists := hashmap[hashedFileString] // Checks if value already exists
-
 	if exists {
 		return "Uploaded File Already Exists"
 	} else {
@@ -88,10 +79,8 @@ func put(content string, hashmap map[string]string) string {
 // Check if that exists in kademlia and download
 // if so, output the contents of the objects and the node it was retrieved from.
 func get(hashvalue string, hashmap map[string]string) (string, string) {
-	nodeID := "000101010100101" // Temp value
-
+	nodeID := "000101010100101"         // Temp value
 	value, exists := hashmap[hashvalue] // Retrieve value from hashmap.
-
 	if exists {
 		return nodeID, value
 	} else {
@@ -100,8 +89,12 @@ func get(hashvalue string, hashmap map[string]string) (string, string) {
 }
 
 // Terminate node.
-func exit() {
+func exit(test int) string {
+	if test != 0 {
+		return "Exit (Test)"
+	}
 	os.Exit(1)
+	return "Exit (Will not be reached)"
 }
 
 // Prints every command possible (return value due to testability)
