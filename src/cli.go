@@ -1,4 +1,4 @@
-package main //d7024e ? kompliererar ej
+package main // Funkar endast med "main"
 
 import (
 	"bufio"
@@ -48,7 +48,7 @@ func handleSingleInput(command string) {
 	case "exit":
 		exit()
 	case "help":
-		help()
+		fmt.Println(help())
 	default:
 		fmt.Println("INVALID COMMAND, TYPE HELP")
 	}
@@ -57,9 +57,12 @@ func handleDualInput(command string, value string, hashmap map[string]string) {
 
 	switch command {
 	case "put":
-		put(value, hashmap)
+		outputHash := put(value, hashmap)
+		fmt.Println(outputHash)
 	case "get":
-		get(value, hashmap)
+		outputNodeID, outputContent := get(value, hashmap)
+		fmt.Println("NodeID: ", outputNodeID, "  Content: ", outputContent)
+
 	default:
 		fmt.Println("INVALID COMMAND, TYPE HELP")
 	}
@@ -68,46 +71,52 @@ func handleDualInput(command string, value string, hashmap map[string]string) {
 // Upload data of file downloaded
 // Check if it can be uploaded
 // if so, output the objects hash
-func put(content string, hashmap map[string]string) {
-	// https://gobyexample.com/sha1-hashes
-	h := sha1.New()
-	h.Write([]byte(content))
-	hashedFileBytes := h.Sum(nil)
-	hashedFileString := hex.EncodeToString(hashedFileBytes) // Encode byte[] to string before entering it into the hashmap.
+func put(content string, hashmap map[string]string) string {
 
+	hashedFileString := sha1Hash(content)
 	_, exists := hashmap[hashedFileString] // Checks if value already exists
 
 	if exists {
-		fmt.Println("Uploaded File Already Exists")
+		return "Uploaded File Already Exists"
 	} else {
 		hashmap[hashedFileString] = content /// Adds the content and outputs the hash
-		fmt.Println(hashedFileString)
+		return hashedFileString
 	}
 }
 
 // Take hash value as output
 // Check if that exists in kademlia and download
 // if so, output the contents of the objects and the node it was retrieved from.
-func get(hashvalue string, hashmap map[string]string) {
+func get(hashvalue string, hashmap map[string]string) (string, string) {
 	nodeID := "000101010100101" // Temp value
 
 	value, exists := hashmap[hashvalue] // Retrieve value from hashmap.
 
 	if exists {
-		fmt.Println("Node: " + nodeID + "       Contains: " + value)
+		return nodeID, value
 	} else {
-		fmt.Println("Hashvalue Does Not Exist In The Hashmap")
+		return nodeID, ("Hashvalue Does Not Exist In The Hashmap")
 	}
 }
 
 // Terminate node.
 func exit() {
-	os.Exit(0)
+	os.Exit(1)
 }
 
-// Prints every command possible
-func help() {
-	fmt.Println("Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
+// Prints every command possible (return value due to testability)
+func help() string {
+	return ("Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
 		"Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
 		"Exit -Terminates the node. " + "\n")
+}
+
+// Performs Sha-1 Hashing and encodes it into a String.
+func sha1Hash(content string) string {
+	// https://gobyexample.com/sha1-hashes
+	h := sha1.New()
+	h.Write([]byte(content))
+	hashedFileBytes := h.Sum(nil)
+	hashedFileString := hex.EncodeToString(hashedFileBytes) // Encode byte[] to string before entering it into the hashmap.
+	return hashedFileString
 }
