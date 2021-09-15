@@ -71,3 +71,26 @@ func (candidates *ContactCandidates) Swap(i, j int) {
 func (candidates *ContactCandidates) Less(i, j int) bool {
 	return candidates.contacts[i].Less(&candidates.contacts[j])
 }
+
+// Contains checks if the list of contacts already contains a node. This assumes that the
+// candidates have been sorted and have calculated distances to the target node.
+// No consideration is taken for unsorted contacts or contacts with improper distance.
+func (candidates *ContactCandidates) Contains(contact * Contact) bool {
+	fmt.Println(candidates.Len())
+	for i := 0; i < candidates.Len(); i++{
+		fmt.Println(candidates.contacts[i].distance)
+		fmt.Println(contact.distance)
+		fmt.Println("  ")
+		if !candidates.contacts[i].Less(contact) {
+			if candidates.contacts[i].distance.Equals(contact.distance) {
+
+				// The contact exists among the candidates
+				return true
+			} else {
+				// The contact is not among the candidates
+				return false
+			}
+		}
+	}
+	return false // If the candidates array is empty
+}
