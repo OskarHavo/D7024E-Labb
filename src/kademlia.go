@@ -1,4 +1,4 @@
-package d7024e
+package main
 
 // The node itself is an object that runs on it's own thread and waits for commands from the networking part
 // of a container. We don't need to perform any udp calls from here, just return messages to the local

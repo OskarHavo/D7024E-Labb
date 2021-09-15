@@ -1,4 +1,4 @@
-package main
+package sprint0
 
 import (
 	"bufio"

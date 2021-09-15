@@ -1,4 +1,4 @@
-package main // Funkar endast med "main"
+package main
 
 import (
 	"bufio"
@@ -100,8 +100,8 @@ func exit(test int) string {
 // Prints every command possible (return value due to testability)
 func help() string {
 	return ("Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
-		"Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
-		"Exit -Terminates the node. " + "\n")
+		    "Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
+		    "Exit -Terminates the node. " + "\n")
 }
 
 // Performs Sha-1 Hashing and encodes it into a String.

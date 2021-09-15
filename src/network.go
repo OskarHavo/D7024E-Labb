@@ -1,4 +1,4 @@
-package d7024e
+package main
 
 import (
 	"fmt"
@@ -25,11 +25,13 @@ const (
 )
 
 type Network struct {
-	local_node *Node
+	k int
+	alpha int
+	localNode *Node
 }
 
 func NewNetwork(node *Node) Network {
-	return Network{node}
+	return Network{20, 3, node}
 }
 
 func Listen(ip string, port int) {
@@ -62,18 +64,26 @@ func (network *Network) SendPingMessage(contact *Contact) {
 	}
 }
 
-func (network *Network) NodeLookup(ID KademliaID) []Contact {
+func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 	// TODO
 	// This will be the central node lookup algorithm that can be used to find nodes or data depending on
 	// the lookup ID. It will always try to locate the K closest nodes in the network and starts by sending
 	// udp messages and recursively locates nodes that are closer until no more nodes can be found. Each node
 	// will then receive these messages and search through their own routing table
+
+	myID := network.localNode.routingTable.me.ID
+	network.localNode.routingTable.FindClosestContacts(myID, network.k)
+
+	network.localNode.routingTable.getBucketIndex(lookupID)
+
 	return nil
 }
 
+/* This is not needed?
 func (network *Network) SendFindContactMessage(contact *Contact) {
-	//conn, err := net.Dial("udp", contact.Address + ":5001")
+	conn, err := net.Dial("udp", contact.Address + ":5001")
 }
+ */
 
 func (network *Network) SendFindDataMessage(hash KademliaID) {
 	// Prepare FIND_VALUE RPC
@@ -83,7 +93,7 @@ func (network *Network) SendFindDataMessage(hash KademliaID) {
 
 	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
 	for _,contact := range nodes { // What type of syntax is this??
-		if network.local_node.routingTable.me.ID == contact.ID {
+		if network.localNode.routingTable.me.ID == contact.ID {
 			// No need to send a network request. Send the RPC directly to the local node thread.
 		} else {
 			// TODO Send a FIND_VALUE RPC
@@ -100,7 +110,7 @@ func (network *Network) SendStoreMessage(hash KademliaID,data []byte) {
 
 	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
 	for _,contact := range nodes { // What type of syntax is this??
-		if network.local_node.routingTable.me.ID == contact.ID {
+		if network.localNode.routingTable.me.ID == contact.ID {
 			// No need to send a network request. Send the RPC directly to the local node thread.
 		} else {
 			// TODO Send a STORE RPC
