@@ -33,16 +33,16 @@ func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count 
 	bucketIndex := routingTable.getBucketIndex(target)
 	bucket := routingTable.buckets[bucketIndex]
 
-	candidates.Append(bucket.GetContactAndCalcDistance(target))
+	candidates.Append(bucket.GetContactsAndCalcDistances(target))
 
 	for i := 1; (bucketIndex-i >= 0 || bucketIndex+i < IDLength*8) && candidates.Len() < count; i++ {
 		if bucketIndex-i >= 0 {
 			bucket = routingTable.buckets[bucketIndex-i]
-			candidates.Append(bucket.GetContactAndCalcDistance(target))
+			candidates.Append(bucket.GetContactsAndCalcDistances(target))
 		}
 		if bucketIndex+i < IDLength*8 {
 			bucket = routingTable.buckets[bucketIndex+i]
-			candidates.Append(bucket.GetContactAndCalcDistance(target))
+			candidates.Append(bucket.GetContactsAndCalcDistances(target))
 		}
 	}
 
