@@ -6,10 +6,12 @@ package main
 type Node struct {
 	storage map[KademliaID][]byte
 	routingTable *RoutingTable
+	//comChannel chan []byte
+	//contactChannel chan[]Contact
 }
 
 func NewNode(ID Contact) Node {
-	return Node{make(map[KademliaID][]byte), NewRoutingTable(ID)}
+	return Node{make(map[KademliaID][]byte), NewRoutingTable(ID)}//, make(chan []byte), make(chan[]Contact)}
 }
 
 func (kademlia *Node) LookupContact(target *Contact) {

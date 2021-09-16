@@ -203,7 +203,18 @@ func (network *Network) SendStoreMessage(hash KademliaID,data []byte) {
 		if network.localNode.routingTable.me.ID == contact.ID {
 			// No need to send a network request. Send the RPC directly to the local node thread.
 		} else {
-			// TODO Send a STORE RPC
+			// TODO Send a STORE RPC and make it wörk
+			go func() {
+				conn, err := net.Dial("udp", contact.Address + ":5001")
+				fmt.Println("Connection established!")
+
+				if err != nil {
+					fmt.Println("Could not establish connection to " + contact.ID.String())
+				} else {
+					conn.Write(storeMessage)
+				}
+				conn.Close()
+			}()
 		}
 	}
 }
