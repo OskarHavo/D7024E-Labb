@@ -76,15 +76,14 @@ func (candidates *ContactCandidates) Less(i, j int) bool {
 // Contains checks if the list of contacts already contains a node. This assumes that the
 // candidates have been sorted and have calculated distances to the target node.
 // No consideration is taken for unsorted contacts or contacts with improper distance.
-func (candidates *ContactCandidates) Contains(contact * Contact) bool {
+func (candidates *ContactCandidates) Contains(contact *Contact) bool {
 	fmt.Println(candidates.Len())
-	for i := 0; i < candidates.Len(); i++{
+	for i := 0; i < candidates.Len(); i++ {
 		fmt.Println(candidates.contacts[i].distance)
 		fmt.Println(contact.distance)
 		fmt.Println("  ")
 		if !candidates.contacts[i].Less(contact) {
 			if candidates.contacts[i].distance.Equals(contact.distance) {
-
 				// The contact exists among the candidates
 				return true
 			} else {
@@ -94,4 +93,29 @@ func (candidates *ContactCandidates) Contains(contact * Contact) bool {
 		}
 	}
 	return false // If the candidates array is empty
+}
+
+func (candidates *ContactCandidates) Visited(k int) bool {
+	for i := 0; i < k; i++ {
+		if candidates.contacts[i].visited == false {
+			return false
+		}
+	}
+	return true
+}
+
+func (candidates *ContactCandidates) GetUnvisited(alpha int) []Contact {
+	var result []Contact
+	alphaCount := 0
+	for i := 0; i < candidates.Len(); i++ {
+		if candidates.contacts[i].visited == false { // If node hasn't been visited yet, lets do so
+			candidates.contacts[i].visited = true
+			result = append(result, candidates.contacts[i])
+			alphaCount += 1
+			if alphaCount == alpha { // We got alpha nodes to visit now, so lets not grab anymore
+				break
+			}
+		}
+	}
+	return result
 }

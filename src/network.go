@@ -43,9 +43,6 @@ const (
 
 	FIND_VALUE byte = iota
 	FIND_VALUE_ACK byte = iota
-
-	STORE_DATA_SIZE int = iota
-	BUCKET_DATA_SIZE int = iota // Om jag vet vad det här är så behövs det inte
 )
 
 type Network struct {
@@ -132,79 +129,41 @@ func (network *Network) NodeLookup(lookupID KademliaID) []Contact {
 	// will then receive these messages and search through their own routing table
 
 	// Get the initial k closest nodes from the current node
-	kClosestNodes := network.localNode.routingTable.FindClosestContacts(&lookupID, network.k)
+	var closestNodes ContactCandidates
+	nodes := network.localNode.routingTable.FindClosestContacts(&lookupID, network.k)
+	closestNodes.Append(nodes)
 
 	// Keep sending RPCs until k closest nodes has been visited
-	for network.VisitedKClosest(kClosestNodes) {
+	for closestNodes.Visited(network.k) {
 		// Grab <=alpha nodes to visit
-		var nodesToVisit []Contact
-		alphaCount := 0
-		for i := 0; i < network.k; i++ {
-			if kClosestNodes[i].visited == false { // If node hasn't been visited yet, lets do so
-				kClosestNodes[i].visited = true
-				nodesToVisit = append(nodesToVisit, kClosestNodes[i])
-				alphaCount += 1
-				if alphaCount == network.alpha { // We got alpha nodes to visit now, so lets not grab anymore
-					break
-				}
-			}
-		}
+		nodesToVisit := closestNodes.GetUnvisited(network.alpha)
 
 		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
-		for i := 0; i < network.alpha; i++ {
+		for i := 0; i < len(nodesToVisit); i++ {
 			// TODO: Do this asynchronously?
+			/* TODO: newBucket has to have each distance calculated towards lookupID!!!
+					 (to be done on the response side (or here ...)
+			         newBucket CANNOT have duplicates (duh ...) */
 			newBucket := network.SendFindContactMessage(&nodesToVisit[i], lookupID) // Send RPC
 			// Update the k closest nodes list
 			// We do this by appending new nodes (non-duplicates) to the list
 			// and then sorting the list based on distance to the lookupID parameter
-			kClosestNodes = network.UpdateKClosest(kClosestNodes, newBucket)
+			network.UpdateKClosest(&closestNodes, newBucket)
 		}
 	}
 
-	return kClosestNodes
+	return closestNodes.GetContacts(network.k)
 }
 
-func (network *Network) UpdateKClosest(kClosestNodes []Contact, newNodes []Contact) []Contact {
-	for i := 0; i < network.k; i++ { // For each node in newNodes
-		curNode := newNodes[i]
-		alreadyIn := false
-		// Check if the new node is already part of k closest
-		for j := 0; j < network.k; j++ {
-			if kClosestNodes[j].ID == curNode.ID {
-				alreadyIn = true
-				break
-			}
-		}
-		// If it isnt, add to kClosest. Otherwise do nothing
-		if !alreadyIn {
-			kClosestNodes = append(kClosestNodes, curNode)
+func (network *Network) UpdateKClosest(kClosestNodes *ContactCandidates, newNodes []Contact) {
+	var toBeAdded []Contact
+	for i := 0; i < len(newNodes); i++ {
+		if !kClosestNodes.Contains(&newNodes[i]) {
+			toBeAdded = append(toBeAdded, newNodes[i])
 		}
 	}
-
-	return network.SortNodes(kClosestNodes)
-}
-
-// Insertion sorting a list of k closest nodes based on their contact.distance
-func (network *Network) SortNodes(kClosestNodes []Contact) []Contact {
-	for i := 1; i < len(kClosestNodes); i++ {
-		curNode := kClosestNodes[i]
-		for j := i; j >= 0; j-- {
-			if j == 0 || curNode.distance.Less(kClosestNodes[j].distance) {
-				kClosestNodes[i] = kClosestNodes[j]
-				kClosestNodes[j] = curNode
-			}
-		}
-	}
-	return kClosestNodes
-}
-
-func (network *Network) VisitedKClosest(kClosestNodes []Contact) bool {
-	for i := 0; i < network.k; i++ {
-		if kClosestNodes[i].visited == false {
-			return false
-		}
-	}
-	return true
+	kClosestNodes.Append(toBeAdded)
+	kClosestNodes.Sort()
 }
 
 func (network *Network) SendFindContactMessage(contact *Contact, targetID KademliaID) []Contact {
@@ -223,7 +182,7 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetID Kademl
 	payload = append(payload, targetID[:]...)
 	conn.Write(payload)
 
-	reply := make([]byte, 1 + 20 + BUCKET_DATA_SIZE) // TODO: Whats the size of 1 bucket in bytes? Its constant at least :)
+	reply := make([]byte, 1 + 20) // TODO: Whats the size of 1 bucket in bytes? Its constant at least :)
 	conn.Read(reply)
 	var kClosestReply bucket
 	json.Unmarshal(reply[21:], kClosestReply)
@@ -240,6 +199,7 @@ func (network *Network) SendFindDataMessage(hash KademliaID) {
 	for _,contact := range nodes { // What type of syntax is this??
 		if network.localNode.routingTable.me.ID == contact.ID {
 			// No need to send a network request. Send the RPC directly to the local node thread.
+			// THEN send reply back to some node requesting it or
 		} else {
 			// TODO Send a FIND_VALUE RPC
 		}
