@@ -1,32 +1,51 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 	"time"
-	"encoding/json"
 )
 
-// Network messages
-// 2 bit message description:
+// Network requests:
+// 3 bit (1 byte) message description:
 // 000: PING
-// 001: STORE
-// 010: FIND_NODE
-// 011: FIND_VALUE
-// 100: REPLY (???)
+// 010: STORE
+// 100: FIND_NODE
+// 110: FIND_VALUE
 // Followed by a 20 byte ID of needed and data for STORE command
 // 2 bit + 20 byte +
 
+// Protocol for returning information:
+// PING_ACK: Contains nothing
+
+// STORE_ACK: Not sure if this is a requirement. We can probably skip it
+
+// FIND_NODE_ACK: Nodes are stored in tuples with <IP, NODE_ID> in a long list without description of how many nodes there are.
+// 		We already know the size of each tuple and the size of the array -> size/tuple_bytes = number of tuples
+
+// FIND_VALUE_ACK: message type followed by one byte indicating a list of nodes or some actual data.
+// 		0: Found no data. Returns <=K closest nodes
+// 		1: Found data. Returns the full byte array
+
 // Golang doesn't have enums, this the closest alternative I could find
 const (
-	PING byte = 0 // 0
-	STORE byte = 1 // 1
-	FIND_NODE byte = 2 // 2
-	FIND_VALUE byte = 3 // 3
+	PING byte = iota
+	PING_ACK byte = iota
+
+	STORE byte = iota
+	STORE_ACK byte = iota
+
+	FIND_NODE byte = iota
+	FIND_NODE_ACK byte = iota
+
+	FIND_VALUE byte = iota
+	FIND_VALUE_ACK byte = iota
+
 	STORE_DATA_SIZE int = iota
-	BUCKET_DATA_SIZE int = iota
+	BUCKET_DATA_SIZE int = iota // Om jag vet vad det här är så behövs det inte
 )
 
 type Network struct {
@@ -39,8 +58,44 @@ func NewNetwork(node *Node) Network {
 	return Network{20, 3, node}
 }
 
-func Listen(ip string, port int) {
-	net.Listen("udp", ip + string(port))
+// Server receive function for network messages
+func (network *Network) unpackMessage(msg *[]byte, connection *net.Conn) {
+	switch id := (*msg)[0]; id {
+	case PING:
+		if (*msg)[1] == 0{
+			var msg = []byte{PING,1} // PING + ACK
+			(*connection).Write(msg)
+		} else {
+			// TODO notify the user interface of the ping message.
+		}
+		return
+	case STORE:
+		//var test KademliaID
+		//test[:] = []byte{0,1,0}
+		//network.localNode.Store((*msg)[1+IDLength:], KademliaID((*msg)[1:1+IDLength]))
+		return
+	case FIND_NODE:
+		return
+	case FIND_VALUE:
+		return
+	}
+}
+
+
+// Listen for incoming connections
+func (network *Network) Listen(ip string, port string) {
+	conn, err := net.Listen("udp", port)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		for {
+			c, err := conn.Accept()
+			if err == nil {
+				var msg []byte = nil
+				c.Read(msg)
+			}
+		}
+	}
 }
 
 func (network *Network) SendPingMessage(contact *Contact) {
