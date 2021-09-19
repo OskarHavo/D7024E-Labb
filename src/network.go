@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -67,15 +66,34 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.Conn) {
 		}
 		return
 	case STORE:
-		//var test KademliaID
-		//test[:] = []byte{0,1,0}
-		//network.localNode.Store((*msg)[1+IDLength:], KademliaID((*msg)[1:1+IDLength]))
+		msg
 		return
 	case FIND_NODE:
+		// TODO: Needs to ignore sending back the recipient to itself!!
+		requesterID := (*msg)[1:20]
+		targetID := (*msg)[21:31] // HELP ROBIN! How 2 extract ID from byte array???
+		bucket := network.localNode.routingTable.FindClosestContacts(targetID, network.k + 1)
+		bucket = removeSelfOrTail(requesterID, bucket)
+		var reply = []byte{FIND_NODE, 1}
+		reply = append(reply, bucket[:]...) // HELP ROBIN! Send bucket back!!!
+		(*connection).Write()
 		return
 	case FIND_VALUE:
 		return
 	}
+}
+
+// We dont wanna send back the requester its own ID so that it has itself in its own bucket.
+// Therefore we grab a bucket of k+1 and either remove the requesterID if it exists, or the tail (the furthest one away
+// of the 21 nodes) if it doesn't.
+func removeSelfOrTail(requesterID KademliaID, bucket []Contact) []Contact {
+	for index, contact := range bucket {
+		if requesterID == *contact.ID {
+			bucket = append(bucket[:index], bucket[index + 1:]...)
+			return bucket
+		}
+	}
+	return bucket[:len(bucket)-1]
 }
 
 
@@ -176,37 +194,72 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetID Kademl
 		fmt.Println("Connection established! Sending ping msg.")
 	}
 
-	// setup payload properly
+	// setup payload properly - HELP ROBIN!
 	payload := make([]byte, 1)
 	payload[0] = FIND_NODE
+	payload = append(payload, network.localNode.routingTable.me.ID[:]...)
 	payload = append(payload, targetID[:]...)
 	conn.Write(payload)
 
 	reply := make([]byte, 1 + 20) // TODO: Whats the size of 1 bucket in bytes? Its constant at least :)
 	conn.Read(reply)
 	var kClosestReply bucket
-	json.Unmarshal(reply[21:], kClosestReply)
 	return kClosestReply.GetContactsAndCalcDistances(&targetID)
 }
 
-func (network *Network) SendFindDataMessage(hash KademliaID) {
-	// Prepare FIND_VALUE RPC
-	findMessage := make([]byte, 1)
-	findMessage[0] = FIND_VALUE
-	findMessage = append(findMessage, hash[:]...)
+// DataLookup Works exactly like NodeLookup, except that we return data if we receive any from
+func (network *Network) DataLookup(hash KademliaID) ([]byte, []Contact) {
+	var closestNodes ContactCandidates
+	nodes := network.localNode.routingTable.FindClosestContacts(&hash, network.k)
+	closestNodes.Append(nodes)
 
-	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
-	for _,contact := range nodes { // What type of syntax is this??
-		if network.localNode.routingTable.me.ID == contact.ID {
-			// No need to send a network request. Send the RPC directly to the local node thread.
-			// THEN send reply back to some node requesting it or
-		} else {
-			// TODO Send a FIND_VALUE RPC
+	var data []byte
+	var newBucket []Contact
+	for closestNodes.Visited(network.k) {
+		// Grab <=alpha nodes to visit
+		nodesToVisit := closestNodes.GetUnvisited(network.alpha)
+
+		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
+		for i := 0; i < len(nodesToVisit); i++ {
+			data, newBucket = network.SendFindDataMessage(&nodesToVisit[i], hash) // Send RPC
+			if data != nil {
+				return data, nil
+			}
+			network.UpdateKClosest(&closestNodes, newBucket)
 		}
 	}
+	return nil, closestNodes.GetContacts(network.k)
 }
 
-func (network *Network) SendStoreMessage(hash KademliaID,data []byte) {
+func (network *Network) SendFindDataMessage(contact *Contact, hash KademliaID) ([]byte, []Contact) {
+	conn, err := net.Dial("udp", contact.Address + ":5001")
+
+	if err != nil {
+		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
+		// TODO: Tcp? Try again?
+	} else {
+		fmt.Println("Connection established! Sending ping msg.")
+	}
+
+	// setup payload properly - HELP ROBIN!
+	payload := make([]byte, 1)
+	payload[0] = FIND_VALUE
+	payload = append(payload, network.localNode.routingTable.me.ID[:]...)
+	payload = append(payload, hash[:]...)
+	conn.Write(payload)
+
+	reply := make([]byte, 1 + 20) // TODO: Reply is gonna be EITHER a bucket or the data we are looking for!
+	// HELP ROBIN!
+	conn.Read(reply)
+	var kClosestReply bucket
+	return nil, bucket
+	return data, nil
+}
+
+// Man ska ju inte ge en hash, utan bara data och sen ger kademlia tillbaka en hash? Eller görs det lokalt i Node
+// structen i kademlia.go innan?
+// SendStoreMessage sends a store msg to the 20th closest nodes a bucket
+func (network *Network) SendStoreMessage(hash KademliaID, data []byte) {
 	// Prepare STORE RPC
 	storeMessage := make([]byte, 1)
 	storeMessage[0] = STORE
@@ -218,7 +271,6 @@ func (network *Network) SendStoreMessage(hash KademliaID,data []byte) {
 		if network.localNode.routingTable.me.ID == contact.ID {
 			// No need to send a network request. Send the RPC directly to the local node thread.
 		} else {
-			// TODO Send a STORE RPC and make it wörk
 			go func() {
 				conn, err := net.Dial("udp", contact.Address + ":5001")
 				fmt.Println("Connection established!")

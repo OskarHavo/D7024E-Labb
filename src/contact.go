@@ -96,7 +96,11 @@ func (candidates *ContactCandidates) Contains(contact *Contact) bool {
 }
 
 func (candidates *ContactCandidates) Visited(k int) bool {
-	for i := 0; i < k; i++ {
+	max := candidates.Len()
+	if candidates.Len() > k {
+		max = k
+	}
+	for i := 0; i < max; i++ {
 		if candidates.contacts[i].visited == false {
 			return false
 		}
