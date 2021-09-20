@@ -11,12 +11,11 @@ type Contact struct {
 	ID       *KademliaID
 	Address  string
 	distance *KademliaID
-	visited  bool
 }
 
 // NewContact returns a new instance of a Contact
 func NewContact(id *KademliaID, address string) Contact {
-	return Contact{id, address, nil, false}
+	return Contact{id, address, nil}
 }
 
 // CalcDistance calculates the distance to the target and 
@@ -44,6 +43,11 @@ type ContactCandidates struct {
 // Append an array of Contacts to the ContactCandidates
 func (candidates *ContactCandidates) Append(contacts []Contact) {
 	candidates.contacts = append(candidates.contacts, contacts...)
+}
+
+// AppendContact appends a single contact rather than an array of contacts
+func (candidates *ContactCandidates) AppendContact(contact Contact) {
+	candidates.contacts = append(candidates.contacts, contact)
 }
 
 // GetContacts returns the first count number of Contacts
@@ -95,6 +99,20 @@ func (candidates *ContactCandidates) Contains(contact *Contact) bool {
 	return false // If the candidates array is empty
 }
 
+// Remove removes a contact from an array if it exists, otherwise it does nothing
+func (candidates *ContactCandidates) Remove(contact *Contact) {
+	if !candidates.Contains(contact) {
+		return
+	}
+	for i, c := range candidates.contacts {
+		if c.ID == contact.ID {
+			candidates.contacts = append(candidates.contacts[:i], candidates.contacts[i+1:]...)
+			return
+		}
+	}
+}
+
+/*
 func (candidates *ContactCandidates) Visited(k int) bool {
 	max := candidates.Len()
 	if candidates.Len() > k {
@@ -122,4 +140,19 @@ func (candidates *ContactCandidates) GetUnvisited(alpha int) []Contact {
 		}
 	}
 	return result
+}
+ */
+
+// Equals checks if the two contacts slices of candidates and otherCandidates are equal up to an index breakpoint
+// Always returns false if any of the two candidates have a length (Len()) < breakpoint
+func (candidates *ContactCandidates) Equals(otherCandidates ContactCandidates, breakpoint int) bool {
+	if candidates.Len() < breakpoint || otherCandidates.Len() < breakpoint {
+		return false
+	}
+	for i := 0; i < breakpoint; i++ {
+		if candidates.contacts[i].ID != otherCandidates.contacts[i].ID {
+			return false
+		}
+	}
+	return true
 }

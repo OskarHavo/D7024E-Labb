@@ -124,69 +124,110 @@ func (network *Network) Ping(contact *Contact) {
 	}
 }
 
-func (network *Network) FindNode(lookupID KademliaID) []Contact {
+func (network *Network) NodeLookup(lookupID KademliaID) []Contact {
 	// This will be the central node lookup algorithm that can be used to find nodes or data depending on
 	// the lookup ID. It will always try to locate the K closest nodes in the network and starts by sending
 	// udp messages and recursively locates nodes that are closer until no more nodes can be found. Each node
 	// will then receive these messages and search through their own routing table
 
 	// Get the initial k closest nodes from the current node
-	var closestNodes ContactCandidates
-	nodes := network.localNode.routingTable.FindClosestContacts(&lookupID, k)
-	closestNodes.Append(nodes)
+	var visited ContactCandidates
+	var unvisited ContactCandidates
+	initNodes := network.localNode.routingTable.FindClosestContacts(&lookupID, k)
+	unvisited.Append(initNodes)
 
-	// Keep sending RPCs until k closest nodes has been visited
-	for closestNodes.Visited(k) {
-		// Grab <=alpha nodes to visit
-		nodesToVisit := closestNodes.GetUnvisited(alpha)
+	wideSearch := false
+	for visitedKClosest(unvisited, visited, k) { // Keep sending RPCs until k closest nodes has been visited
+		var nodesToVisit []Contact
+		if wideSearch {
+			// Grab <=k nodes to visit
+			nodesToVisit = unvisited.GetContacts(k)
+			wideSearch = false
+		} else {
+			// Grab <=alpha nodes to visit
+			nodesToVisit = unvisited.GetContacts(alpha)
+		}
 
 		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
 		for i := 0; i < len(nodesToVisit); i++ {
 			// TODO: Do this asynchronously?
-			/* TODO: newBucket has to have each distance calculated towards lookupID!!!
-					 (to be done on the response side (or here ...)
-			         newBucket CANNOT have duplicates (duh ...) */
-			newBucket := network.sendLookupMessage(&nodesToVisit[i], lookupID) // Send RPC
-			// Update the k closest nodes list
-			// We do this by appending new nodes (non-duplicates) to the list
-			// and then sorting the list based on distance to the lookupID parameter
-			network.updateKClosest(&closestNodes, newBucket)
+			newBucket := network.findNodeRPC(&nodesToVisit[i], lookupID, &visited, &unvisited) // Send RPC
+
+			//oldKClosest := unvisited
+			network.updateKClosest(&visited, &unvisited, newBucket)
+			//newKClosest := unvisited
+			// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
+			// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
+			// "wide search"
+			/* TODO
+			for _, contact := range newBucket {
+				wideSearch = doWideSearch()
+			}
+
+			if oldKClosest.Equals(newKClosest, k) {
+				wideSearch = doWideSearch()
+			}
+			 */
 		}
 	}
 
-	return closestNodes.GetContacts(k)
+	return visited.GetContacts(k)
 }
 
-// FindData Works exactly like NodeLookup, except that we return data if we receive any from
-func (network *Network) FindData(hash KademliaID) ([]byte, []Contact) {
-	var closestNodes ContactCandidates
-	nodes := network.localNode.routingTable.FindClosestContacts(&hash, k)
-	closestNodes.Append(nodes)
+func doWideSearch(newContacts []Contact, visited ContactCandidates, unvisited ContactCandidates) {
+	visited.Append(unvisited.contacts)
+	for _, contact := range newContacts {
+		//if contact TODO
+	}
+}
+
+// DataLookup works exactly like NodeLookup, except that we return data instead of a bucket if we find it from
+// any of the findDataRPCs (which replaces findNodeRPC from NodeLookup)
+func (network *Network) DataLookup(hash KademliaID) ([]byte, []Contact) {
+	var visited ContactCandidates
+	var unvisited ContactCandidates
+	initNodes := network.localNode.routingTable.FindClosestContacts(&hash, k)
+	unvisited.Append(initNodes)
 
 	var data []byte
 	var newBucket []Contact
-	for closestNodes.Visited(k) {
-		// Grab <=alpha nodes to visit
-		nodesToVisit := closestNodes.GetUnvisited(alpha)
+	wideSearch := false
+	for visitedKClosest(unvisited, visited, k) {
+		var nodesToVisit []Contact
+		if wideSearch {
+			// Grab <=k nodes to visit
+			nodesToVisit = unvisited.GetContacts(k)
+			wideSearch = false
+		} else {
+			// Grab <=alpha nodes to visit
+			nodesToVisit = unvisited.GetContacts(alpha)
+		}
 
 		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
 		for i := 0; i < len(nodesToVisit); i++ {
-			data, newBucket = network.sendDataMessage(&nodesToVisit[i], hash) // Send RPC
+			data, newBucket = network.findDataRPC(&nodesToVisit[i], hash) // Send RPC
 			if data != nil {
 				return data, nil
 			}
-			network.updateKClosest(&closestNodes, newBucket)
+
+			//oldKClosest := closestNodes
+			network.updateKClosest(&visited, &unvisited, newBucket)
+			//newKClosest := closestNodes
+			// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
+			// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
+			// "wide search"
+			/* TODO
+			if oldKClosest.Equals(newKClosest, k) {
+				wideSearch = true
+			} */
 		}
 	}
-	return nil, closestNodes.GetContacts(k)
+	return nil, visited.GetContacts(k)
 }
-
-// Man ska ju inte ge en hash, utan bara data och sen ger kademlia tillbaka en hash? Eller görs det lokalt i Node
-// structen i kademlia.go innan?
 
 // Store sends a store msg to the 20th closest nodes a bucket
 func (network *Network) Store(data []byte, hash KademliaID) {
-	var nodes = network.FindNode(hash) // Get ALL nodes that are closest to the hash value
+	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
 	network.localNode.routingTable.me.CalcDistance(&hash)
 	if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) {
 		// If the locals node distance is less than the last node in the bucket,
@@ -199,46 +240,45 @@ func (network *Network) Store(data []byte, hash KademliaID) {
 			network.localNode.Store(data, hash)
 		} else {
 			// This is easily done async because we don't have to care what happens after!
-			go network.sendStoreMessage(contact, hash, data)
+			go network.storeDataRPC(contact, hash, data)
 		}
 	}
 }
 
-func (network *Network) updateKClosest(kClosestNodes *ContactCandidates, newNodes []Contact) {
-	var toBeAdded []Contact
-	for i := 0; i < len(newNodes); i++ {
-		if !kClosestNodes.Contains(&newNodes[i]) {
-			toBeAdded = append(toBeAdded, newNodes[i])
-		}
-	}
-	kClosestNodes.Append(toBeAdded)
-	kClosestNodes.Sort()
-}
-
-func (network *Network) sendLookupMessage(contact *Contact, targetID KademliaID) []Contact {
+func (network *Network) findNodeRPC(contact *Contact, targetID KademliaID,
+	visited *ContactCandidates, unvisited *ContactCandidates) []Contact {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
 	if err != nil {
 		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
-		// TODO: Tcp? Try again?
+
+		// "Nodes that fail to respond (quickly) are removed from
+		// consideration untilk and unless they do respond"
+		unvisited.Remove(contact)
+
+		return nil
 	} else {
-		fmt.Println("Connection established! Sending ping msg.")
+		fmt.Println("Connection established! Sending find node RPC.")
+
+		// We are visiting the node, so we move it from unvisited to visited collection
+		unvisited.Remove(contact)
+		visited.AppendContact(*contact)
+
+		// setup payload properly - HELP ROBIN!
+		payload := make([]byte, 1)
+		payload[0] = FIND_NODE
+		payload = append(payload, network.localNode.routingTable.me.ID[:]...)
+		payload = append(payload, targetID[:]...)
+		conn.Write(payload)
+
+		reply := make([]byte, 1 + 20) // TODO: Whats the size of 1 bucket in bytes? Its consta	nt at least :)
+		conn.Read(reply)
+		var kClosestReply bucket
+		return kClosestReply.GetContactsAndCalcDistances(&targetID)
 	}
-
-	// setup payload properly - HELP ROBIN!
-	payload := make([]byte, 1)
-	payload[0] = FIND_NODE
-	payload = append(payload, network.localNode.routingTable.me.ID[:]...)
-	payload = append(payload, targetID[:]...)
-	conn.Write(payload)
-
-	reply := make([]byte, 1 + 20) // TODO: Whats the size of 1 bucket in bytes? Its constant at least :)
-	conn.Read(reply)
-	var kClosestReply bucket
-	return kClosestReply.GetContactsAndCalcDistances(&targetID)
 }
 
-func (network *Network) sendDataMessage(contact *Contact, hash KademliaID) ([]byte, []Contact) {
+func (network *Network) findDataRPC(contact *Contact, hash KademliaID) ([]byte, []Contact) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
 	if err != nil {
@@ -264,7 +304,7 @@ func (network *Network) sendDataMessage(contact *Contact, hash KademliaID) ([]by
 	//return data, nil
 }
 
-func (network *Network) sendStoreMessage(contact Contact, hash KademliaID, data []byte) {
+func (network *Network) storeDataRPC(contact Contact, hash KademliaID, data []byte) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 	fmt.Println("Connection established!")
 
@@ -282,9 +322,9 @@ func (network *Network) sendStoreMessage(contact Contact, hash KademliaID, data 
 	conn.Close()
 }
 
-// We dont wanna send back the requester its own ID so that it has itself in its own bucket.
-// Therefore we grab a bucket of k+1 and either remove the requesterID if it exists, or the tail (the furthest one away
-// of the 21 nodes) if it doesn't.
+// We don't want to send back the requester its own ID so that it has itself in its own bucket.
+// removeSelfOrTail therefore grabs a bucket of size k+1 and either remove the requesterID if it exists,
+// or the tail (the furthest one away of the 21 nodes) if it doesn't.
 func removeSelfOrTail(requesterID KademliaID, bucket []Contact) []Contact {
 	for index, contact := range bucket {
 		if requesterID == *contact.ID {
@@ -293,4 +333,38 @@ func removeSelfOrTail(requesterID KademliaID, bucket []Contact) []Contact {
 		}
 	}
 	return bucket[:len(bucket)-1]
+}
+
+// updateKClosest updates the list of the k closest nodes used in the NodeLookup algorithm
+// It is done by appending new nodes (non-duplicates) to the unvisited collection
+// and then sorting the list based on distance to the lookupID parameter
+func (network *Network) updateKClosest(visited *ContactCandidates, unvisited *ContactCandidates,
+	newNodes []Contact) {
+	all := *visited
+	all.Append(unvisited.contacts)
+	var toBeAdded []Contact
+	for i := 0; i < len(newNodes); i++ {
+		if !all.Contains(&newNodes[i]) {
+			toBeAdded = append(toBeAdded, newNodes[i])
+		}
+	}
+	unvisited.Append(toBeAdded)
+	unvisited.Sort()
+}
+
+func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k int) bool {
+	if visited.Len() < k { // Cant have visited k closest if we haven't even visited k nodes yet
+		return false
+	}
+
+	visited.Append(unvisited.contacts)
+	visited.Sort()
+	unvisited.Sort()
+
+	for i := 0; i < k; i++ {
+		if visited.contacts[i].ID != unvisited.contacts[i].ID {
+			return false
+		}
+	}
+	return true
 }
