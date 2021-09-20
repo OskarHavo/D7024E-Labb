@@ -81,20 +81,6 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.Conn) {
 	}
 }
 
-// We dont wanna send back the requester its own ID so that it has itself in its own bucket.
-// Therefore we grab a bucket of k+1 and either remove the requesterID if it exists, or the tail (the furthest one away
-// of the 21 nodes) if it doesn't.
-func removeSelfOrTail(requesterID KademliaID, bucket []Contact) []Contact {
-	for index, contact := range bucket {
-		if requesterID == *contact.ID {
-			bucket = append(bucket[:index], bucket[index + 1:]...)
-			return bucket
-		}
-	}
-	return bucket[:len(bucket)-1]
-}
-
-
 // Listen for incoming connections
 func (network *Network) Listen(ip string, port string) {
 	conn, err := net.Listen("udp", port)
@@ -171,6 +157,53 @@ func (network *Network) FindNode(lookupID KademliaID) []Contact {
 	return closestNodes.GetContacts(k)
 }
 
+// FindData Works exactly like NodeLookup, except that we return data if we receive any from
+func (network *Network) FindData(hash KademliaID) ([]byte, []Contact) {
+	var closestNodes ContactCandidates
+	nodes := network.localNode.routingTable.FindClosestContacts(&hash, k)
+	closestNodes.Append(nodes)
+
+	var data []byte
+	var newBucket []Contact
+	for closestNodes.Visited(k) {
+		// Grab <=alpha nodes to visit
+		nodesToVisit := closestNodes.GetUnvisited(alpha)
+
+		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
+		for i := 0; i < len(nodesToVisit); i++ {
+			data, newBucket = network.sendDataMessage(&nodesToVisit[i], hash) // Send RPC
+			if data != nil {
+				return data, nil
+			}
+			network.updateKClosest(&closestNodes, newBucket)
+		}
+	}
+	return nil, closestNodes.GetContacts(k)
+}
+
+// Man ska ju inte ge en hash, utan bara data och sen ger kademlia tillbaka en hash? Eller görs det lokalt i Node
+// structen i kademlia.go innan?
+
+// Store sends a store msg to the 20th closest nodes a bucket
+func (network *Network) Store(data []byte, hash KademliaID) {
+	var nodes = network.FindNode(hash) // Get ALL nodes that are closest to the hash value
+	network.localNode.routingTable.me.CalcDistance(&hash)
+	if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) {
+		// If the locals node distance is less than the last node in the bucket,
+		// Im actually supposed to be in the bucket and not that node.
+		nodes[len(nodes)-1] = network.localNode.routingTable.me
+	}
+	for _,contact := range nodes { // What type of syntax is this??
+		if network.localNode.routingTable.me.ID == contact.ID {
+			// No need to send a network request. Send the RPC directly to the local node thread.
+			network.localNode.Store(data, hash)
+		} else {
+			// This is easily done async because we don't have to care what happens after!
+			go network.sendStoreMessage(contact, hash, data)
+		}
+	}
+}
+
 func (network *Network) updateKClosest(kClosestNodes *ContactCandidates, newNodes []Contact) {
 	var toBeAdded []Contact
 	for i := 0; i < len(newNodes); i++ {
@@ -205,30 +238,6 @@ func (network *Network) sendLookupMessage(contact *Contact, targetID KademliaID)
 	return kClosestReply.GetContactsAndCalcDistances(&targetID)
 }
 
-// DataLookup Works exactly like NodeLookup, except that we return data if we receive any from
-func (network *Network) FindData(hash KademliaID) ([]byte, []Contact) {
-	var closestNodes ContactCandidates
-	nodes := network.localNode.routingTable.FindClosestContacts(&hash, k)
-	closestNodes.Append(nodes)
-
-	var data []byte
-	var newBucket []Contact
-	for closestNodes.Visited(k) {
-		// Grab <=alpha nodes to visit
-		nodesToVisit := closestNodes.GetUnvisited(alpha)
-
-		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
-		for i := 0; i < len(nodesToVisit); i++ {
-			data, newBucket = network.sendDataMessage(&nodesToVisit[i], hash) // Send RPC
-			if data != nil {
-				return data, nil
-			}
-			network.updateKClosest(&closestNodes, newBucket)
-		}
-	}
-	return nil, closestNodes.GetContacts(k)
-}
-
 func (network *Network) sendDataMessage(contact *Contact, hash KademliaID) ([]byte, []Contact) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
@@ -255,32 +264,33 @@ func (network *Network) sendDataMessage(contact *Contact, hash KademliaID) ([]by
 	//return data, nil
 }
 
-// Man ska ju inte ge en hash, utan bara data och sen ger kademlia tillbaka en hash? Eller görs det lokalt i Node
-// structen i kademlia.go innan?
-// SendStoreMessage sends a store msg to the 20th closest nodes a bucket
-func (network *Network) Store(hash KademliaID, data []byte) {
-	// Prepare STORE RPC
-	storeMessage := make([]byte, 1)
-	storeMessage[0] = STORE
-	storeMessage = append(storeMessage, hash[:]...)
-	storeMessage = append(storeMessage, data...)
+func (network *Network) sendStoreMessage(contact Contact, hash KademliaID, data []byte) {
+	conn, err := net.Dial("udp", contact.Address + ":5001")
+	fmt.Println("Connection established!")
 
-	var nodes = network.FindNode(hash) // Get ALL nodes that are closest to the hash value
-	for _,contact := range nodes { // What type of syntax is this??
-		if network.localNode.routingTable.me.ID == contact.ID {
-			// No need to send a network request. Send the RPC directly to the local node thread.
-		} else {
-			go func() {
-				conn, err := net.Dial("udp", contact.Address + ":5001")
-				fmt.Println("Connection established!")
+	if err != nil {
+		fmt.Println("Could not establish connection to " + contact.ID.String())
+	} else {
+		// Prepare STORE RPC
+		storeMessage := make([]byte, 1)
+		storeMessage[0] = STORE
+		storeMessage = append(storeMessage, hash[:]...)
+		storeMessage = append(storeMessage, data...)
 
-				if err != nil {
-					fmt.Println("Could not establish connection to " + contact.ID.String())
-				} else {
-					conn.Write(storeMessage)
-				}
-				conn.Close()
-			}()
+		conn.Write(storeMessage)
+	}
+	conn.Close()
+}
+
+// We dont wanna send back the requester its own ID so that it has itself in its own bucket.
+// Therefore we grab a bucket of k+1 and either remove the requesterID if it exists, or the tail (the furthest one away
+// of the 21 nodes) if it doesn't.
+func removeSelfOrTail(requesterID KademliaID, bucket []Contact) []Contact {
+	for index, contact := range bucket {
+		if requesterID == *contact.ID {
+			bucket = append(bucket[:index], bucket[index + 1:]...)
+			return bucket
 		}
 	}
+	return bucket[:len(bucket)-1]
 }
