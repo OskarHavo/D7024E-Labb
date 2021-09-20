@@ -5,6 +5,6 @@ import (
 	"testing"
 )
 
-func TestNodeLookup(t *testing.T) {
+func TestNewNode(t *testing.T) {
 	fmt.Println("This import is not unused >:(")
 }
