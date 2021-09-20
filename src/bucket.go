@@ -30,7 +30,7 @@ func (bucket *bucket) AddContact(contact Contact) {
 	}
 
 	if element == nil {
-		if bucket.list.Len() < bucketSize {
+		if bucket.list.Len() < k {
 			bucket.list.PushFront(contact)
 		}
 	} else {

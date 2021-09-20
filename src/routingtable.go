@@ -1,7 +1,7 @@
 package main
 
-// TODO: Varför finns den här????????????
-const bucketSize = 20
+const k = 20
+const alpha = 20
 
 // RoutingTable definition
 // keeps a refrence contact of me and an array of buckets
