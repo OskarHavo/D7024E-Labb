@@ -184,7 +184,6 @@ func (network *Network) Ping(contact *Contact) {
 	}
 }
 
-
 func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 	// This will be the central node lookup algorithm that can be used to find nodes or data depending on
 	// the lookup ID. It will always try to locate the K closest nodes in the network and starts by sending
@@ -192,7 +191,6 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 	// will then receive these messages and search through their own routing table
 
 	// Get the initial k closest nodes from the current node
-
 	var visited ContactCandidates
 	var unvisited ContactCandidates
 	initNodes := network.localNode.routingTable.FindClosestContacts(lookupID, k)
@@ -210,37 +208,31 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 			nodesToVisit = unvisited.GetContacts(alpha)
 		}
 
+		var newRoundNodes []Contact
 		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
 		for i := 0; i < len(nodesToVisit); i++ {
 			// TODO: Do this asynchronously?
 			newBucket := network.findNodeRPC(&nodesToVisit[i], lookupID, &visited, &unvisited) // Send RPC
+			newRoundNodes = append(newRoundNodes, newBucket...)
 
-			//oldKClosest := unvisited
 			network.updateKClosest(&visited, &unvisited, newBucket)
-			//newKClosest := unvisited
-			// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
-			// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
-			// "wide search"
-			/* TODO
-			for _, contact := range newBucket {
-				wideSearch = doWideSearch()
-			}
-			if oldKClosest.Equals(newKClosest, k) {
-				wideSearch = doWideSearch()
-			}
-			*/
 		}
+		// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
+		// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
+		// "wide search
+		wideSearch = doWideSearch(newRoundNodes, nodesToVisit[0])
 	}
 
 	return visited.GetContacts(k)
 }
 
-
-func doWideSearch(newContacts []Contact, visited ContactCandidates, unvisited ContactCandidates) {
-	visited.Append(unvisited.contacts)
+func doWideSearch(newContacts []Contact, closest Contact) bool {
 	for _, contact := range newContacts {
-		//if contact TODO
+		if contact.Less(&closest) {
+			return false
+		}
 	}
+	return true
 }
 
 // DataLookup works exactly like NodeLookup, except that we return data instead of a bucket if we find it from
@@ -266,24 +258,22 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 			nodesToVisit = unvisited.GetContacts(alpha)
 		}
 
+		var newRoundNodes []Contact
 		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
 		for i := 0; i < len(nodesToVisit); i++ {
 			data, newBucket = network.findDataRPC(&nodesToVisit[i], hash) // Send RPC
+			newRoundNodes = append(newRoundNodes, newBucket...)
 			if data != nil {
 				return data, nil
 			}
 
-			//oldKClosest := closestNodes
 			network.updateKClosest(&visited, &unvisited, newBucket)
-			//newKClosest := closestNodes
-			// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
-			// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
-			// "wide search"
-			/* TODO
-			if oldKClosest.Equals(newKClosest, k) {
-				wideSearch = true
-			} */
 		}
+
+		// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
+		// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
+		// "wide search
+		wideSearch = doWideSearch(newRoundNodes, nodesToVisit[0])
 	}
 	return nil, visited.GetContacts(k)
 }
@@ -307,7 +297,6 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 		}
 	}
 }
-
 
 func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 	visited *ContactCandidates, unvisited *ContactCandidates) []Contact {
@@ -383,7 +372,6 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 	}
 
 }
-
 
 func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []byte) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
