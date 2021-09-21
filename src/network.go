@@ -157,17 +157,29 @@ func (network *Network) Listen(ip string, port string) {
 	}
 }
 
-func (network *Network) Ping(contact *Contact) {
+func (network *Network) Join(id *KademliaID, address string) {
+	knownNode := NewContact(id, address)
+	network.localNode.routingTable.AddContact(knownNode)
+
+	if network.Ping(&knownNode) { // If Ping is successful
+		network.localNode.routingTable.AddContact(knownNode) // Add node to routingtable locally
+		newContacts := network.NodeLookup(network.localNode.routingTable.me.ID) // Start lookup algorithm on yourself
+		for _, contact := range newContacts {
+			network.localNode.routingTable.AddContact(contact)
+		}
+	}
+}
+
+func (network *Network) Ping(contact *Contact) bool {
 	reply := make([]byte, 256)
 
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
 	if err != nil {
 		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
-		// TODO: Tcp? Try again?
-		return
+		return false
 	} else {
-		fmt.Println("Connection established! Sending ping msg.")
+		fmt.Println("Connection established to " + contact.ID.String() + "!")
 	}
 
 	start := time.Now()
@@ -179,8 +191,10 @@ func (network *Network) Ping(contact *Contact) {
 	if fReply[0] == "Ack!" {
 		fmt.Println("Pinging node " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
 			10) + " ms")
+		return true
 	} else {
 		fmt.Println("Received unrecognized response from node " + contact.ID.String() + " when pinged")
+		return false
 	}
 }
 
@@ -304,15 +318,16 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
 	if err != nil {
-		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
+		fmt.Println("Could not establish connection when sending findNodeRPC to " + contact.ID.String())
 
 		// "Nodes that fail to respond (quickly) are removed from
-		// consideration untilk and unless they do respond"
+		//  consideration until and unless they do respond"
 		unvisited.Remove(contact)
 
 		return nil
 	} else {
-		fmt.Println("Connection established! Sending find node RPC.")
+		fmt.Println("Connection established to " + contact.ID.String() + "!")
+		fmt.Println("Sending findNodeRPC ...")
 
 		// We are visiting the node, so we move it from unvisited to visited collection
 		unvisited.Remove(contact)
@@ -338,10 +353,11 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
 	if err != nil {
-		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
+		fmt.Println("Could not establish connection when sending findDataRPC to " + contact.ID.String())
 		// TODO: Tcp? Try again?
 	} else {
-		fmt.Println("Connection established! Sending ping msg.")
+		fmt.Println("Connection established to " + contact.ID.String() + "!")
+		fmt.Println("Sending findDataRPC ...")
 	}
 
 	payload := make([]byte, 1)
@@ -375,11 +391,13 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 
 func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []byte) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
-	fmt.Println("Connection established!")
 
 	if err != nil {
-		fmt.Println("Could not establish connection to " + contact.ID.String())
+		fmt.Println("Could not establish connection when sending storeDataRPC to " + contact.ID.String())
 	} else {
+		fmt.Println("Connection established to " + contact.ID.String() + "!")
+		fmt.Println("Sending storeDataRPC ...")
+
 		// Prepare STORE RPC
 		storeMessage := make([]byte, 1)
 		storeMessage[0] = STORE
@@ -426,14 +444,11 @@ func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k i
 		return false
 	}
 
-	visited.Append(unvisited.contacts)
 	visited.Sort()
 	unvisited.Sort()
 
-	for i := 0; i < k; i++ {
-		if visited.contacts[i].ID != unvisited.contacts[i].ID {
-			return false
-		}
+	if visited.contacts[k-1].Less(&unvisited.contacts[0]) {
+		return true
 	}
-	return true
+	return false
 }

@@ -15,7 +15,7 @@ func NewNode(ID Contact) Node {
 }
 
 func (kademlia *Node) LookupContact(target *Contact) {
-	// TODO
+	// TODO - Vad ska den här göra? Behövs den?
 }
 
 func (kademlia *Node) LookupData(hash *KademliaID) []byte {
