@@ -41,7 +41,8 @@ const (
 	FIND_NODE_ACK byte = iota
 
 	FIND_DATA byte = iota
-	FIND_DATA_ACK byte = iota
+	FIND_DATA_ACK_SUCCESS byte = iota
+	FIND_DATA_ACK_FAIL byte = iota
 )
 
 type Network struct {
@@ -50,6 +51,33 @@ type Network struct {
 
 func NewNetwork(node *Node) Network {
 	return Network{node}
+}
+
+func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.Conn, msgType byte) {
+	requesterID := (*KademliaID)((*msg)[1:1+IDLength])
+	targetID := (*KademliaID)((*msg)[1+IDLength:1+IDLength+IDLength])
+	bucket := network.localNode.routingTable.FindClosestContacts(targetID, k + 1)
+	bucket = removeSelfOrTail(requesterID, bucket)
+
+
+	// Prepare reply
+	var reply = make([]byte,1+1+(IDLength+4)*len(bucket)) // 1 byte msg, 1 byte for number of contacts
+	reply[0] = msgType // Set the message type
+	reply[1] = byte(len(bucket))
+
+	// Serialize the contacts and put them in the message
+	var i = 0
+	for _,data := range bucket {
+		copy(reply[2+(IDLength+4)*i:2+(IDLength+4)*i+IDLength],data.ID[:])
+		var address = net.ParseIP(data.Address)[12:]
+		copy(reply[(2+IDLength)+(IDLength+4)*i:(2+IDLength)+(IDLength+4)*i+4],address)
+		i++
+	}
+
+	// Final structure of message:
+	// FIND_NODE_ACK + number of contacts + (ID + IP) + (ID + IP) + ...
+
+	(*connection).Write(reply)
 }
 
 // Server receive function for network messages
@@ -64,19 +92,51 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.Conn) {
 		}
 		return
 	case STORE:
-		msg
+		network.localNode.Store((*msg)[1+IDLength:], (*KademliaID)((*msg)[1:1+IDLength]))
+		return
+	case STORE_ACK:
+		// TODO I dunno, send a message to the GUI or something.
 		return
 	case FIND_NODE:
-		// TODO: Needs to ignore sending back the recipient to itself!!
-		requesterID := (*msg)[1:20]
-		targetID := (*msg)[21:31] // HELP ROBIN! How 2 extract ID from byte array???
+		/*
+		requesterID := (*KademliaID)((*msg)[1:1+IDLength])
+		targetID := (*KademliaID)((*msg)[1+IDLength:1+IDLength+IDLength])
 		bucket := network.localNode.routingTable.FindClosestContacts(targetID, k + 1)
 		bucket = removeSelfOrTail(requesterID, bucket)
-		var reply = []byte{FIND_NODE, 1}
-		reply = append(reply, bucket[:]...) // HELP ROBIN! Send bucket back!!!
-		(*connection).Write()
+
+
+		// Prepare reply
+		var reply = make([]byte,1+1+(IDLength+4)*len(bucket)) // 1 byte msg, 1 byte for number of contacts
+		reply[0] = FIND_NODE_ACK // Set the message type
+		reply[1] = byte(len(bucket))
+
+		// Serialize the contacts and put them in the message
+		var i = 0
+		for _,data := range bucket {
+			copy(reply[2+(IDLength+4)*i:2+(IDLength+4)*i+IDLength],data.ID[:])
+			var address = net.ParseIP(data.Address)[12:]
+			copy(reply[(2+IDLength)+(IDLength+4)*i:(2+IDLength)+(IDLength+4)*i+4],address)
+			i++
+		}
+
+		// Final structure of message:
+		// FIND_NODE_ACK + number of contacts + (ID + IP) + (ID + IP) + ...
+
+		(*connection).Write(reply)
+		 */
+		network.sendFindNodeAck(msg,connection, FIND_NODE_ACK)
 		return
 	case FIND_DATA:
+		ID := (*KademliaID)((*msg)[1:1+IDLength])
+		result := network.localNode.LookupData(ID)
+		if result != nil {
+			var reply = make([]byte,1+len(result))
+			reply[0] = FIND_DATA_ACK_SUCCESS
+			copy(reply[1:],result)
+			(*connection).Write(reply)
+		} else {
+			network.sendFindNodeAck(msg,connection,FIND_DATA_ACK_FAIL)
+		}
 		return
 	}
 }
@@ -124,16 +184,18 @@ func (network *Network) Ping(contact *Contact) {
 	}
 }
 
-func (network *Network) NodeLookup(lookupID KademliaID) []Contact {
+
+func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 	// This will be the central node lookup algorithm that can be used to find nodes or data depending on
 	// the lookup ID. It will always try to locate the K closest nodes in the network and starts by sending
 	// udp messages and recursively locates nodes that are closer until no more nodes can be found. Each node
 	// will then receive these messages and search through their own routing table
 
 	// Get the initial k closest nodes from the current node
+
 	var visited ContactCandidates
 	var unvisited ContactCandidates
-	initNodes := network.localNode.routingTable.FindClosestContacts(&lookupID, k)
+	initNodes := network.localNode.routingTable.FindClosestContacts(lookupID, k)
 	unvisited.Append(initNodes)
 
 	wideSearch := false
@@ -163,16 +225,16 @@ func (network *Network) NodeLookup(lookupID KademliaID) []Contact {
 			for _, contact := range newBucket {
 				wideSearch = doWideSearch()
 			}
-
 			if oldKClosest.Equals(newKClosest, k) {
 				wideSearch = doWideSearch()
 			}
-			 */
+			*/
 		}
 	}
 
 	return visited.GetContacts(k)
 }
+
 
 func doWideSearch(newContacts []Contact, visited ContactCandidates, unvisited ContactCandidates) {
 	visited.Append(unvisited.contacts)
@@ -183,11 +245,12 @@ func doWideSearch(newContacts []Contact, visited ContactCandidates, unvisited Co
 
 // DataLookup works exactly like NodeLookup, except that we return data instead of a bucket if we find it from
 // any of the findDataRPCs (which replaces findNodeRPC from NodeLookup)
-func (network *Network) DataLookup(hash KademliaID) ([]byte, []Contact) {
+func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 	var visited ContactCandidates
 	var unvisited ContactCandidates
-	initNodes := network.localNode.routingTable.FindClosestContacts(&hash, k)
+	initNodes := network.localNode.routingTable.FindClosestContacts(hash, k)
 	unvisited.Append(initNodes)
+
 
 	var data []byte
 	var newBucket []Contact
@@ -226,9 +289,9 @@ func (network *Network) DataLookup(hash KademliaID) ([]byte, []Contact) {
 }
 
 // Store sends a store msg to the 20th closest nodes a bucket
-func (network *Network) Store(data []byte, hash KademliaID) {
+func (network *Network) Store(data []byte, hash *KademliaID) {
 	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
-	network.localNode.routingTable.me.CalcDistance(&hash)
+	network.localNode.routingTable.me.CalcDistance(hash)
 	if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) {
 		// If the locals node distance is less than the last node in the bucket,
 		// Im actually supposed to be in the bucket and not that node.
@@ -245,8 +308,10 @@ func (network *Network) Store(data []byte, hash KademliaID) {
 	}
 }
 
-func (network *Network) findNodeRPC(contact *Contact, targetID KademliaID,
+
+func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 	visited *ContactCandidates, unvisited *ContactCandidates) []Contact {
+
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
 	if err != nil {
@@ -264,21 +329,23 @@ func (network *Network) findNodeRPC(contact *Contact, targetID KademliaID,
 		unvisited.Remove(contact)
 		visited.AppendContact(*contact)
 
-		// setup payload properly - HELP ROBIN!
-		payload := make([]byte, 1)
-		payload[0] = FIND_NODE
-		payload = append(payload, network.localNode.routingTable.me.ID[:]...)
-		payload = append(payload, targetID[:]...)
-		conn.Write(payload)
-
-		reply := make([]byte, 1 + 20) // TODO: Whats the size of 1 bucket in bytes? Its consta	nt at least :)
+		reply := make([]byte,1+1+(IDLength+4)*k)
 		conn.Read(reply)
+		totalContacts := int(reply[1])
 		var kClosestReply bucket
-		return kClosestReply.GetContactsAndCalcDistances(&targetID)
+		for i := 0; i < totalContacts;i++ {
+			id := reply[2+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
+			IP := net.IP{}
+			copy(IP[12:],reply[2+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
+			contact := NewContact((*KademliaID)(id),IP.String())
+
+			kClosestReply.AddContact(contact)
+		}
+		return kClosestReply.GetContactsAndCalcDistances(targetID)
 	}
 }
 
-func (network *Network) findDataRPC(contact *Contact, hash KademliaID) ([]byte, []Contact) {
+func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte, []Contact) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
 	if err != nil {
@@ -288,23 +355,37 @@ func (network *Network) findDataRPC(contact *Contact, hash KademliaID) ([]byte, 
 		fmt.Println("Connection established! Sending ping msg.")
 	}
 
-	// setup payload properly - HELP ROBIN!
 	payload := make([]byte, 1)
 	payload[0] = FIND_DATA
 	payload = append(payload, network.localNode.routingTable.me.ID[:]...)
 	payload = append(payload, hash[:]...)
 	conn.Write(payload)
 
-	reply := make([]byte, 1 + 20) // TODO: Reply is gonna be EITHER a bucket or the data we are looking for!
-	// HELP ROBIN!
+	reply := make([]byte,1+1+(IDLength+4)*k)
 	conn.Read(reply)
-	//var kClosestReply bucket
-	return nil, nil
-	//return nil, bucket
-	//return data, nil
+
+	if reply[0] == FIND_DATA_ACK_FAIL {
+		totalContacts := int(reply[1])
+		var kClosestReply bucket
+		for i := 0; i < totalContacts;i++ {
+			id := reply[2+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
+			IP := net.IP{}
+			copy(IP[12:],reply[2+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
+			contact := NewContact((*KademliaID)(id),IP.String())
+
+			kClosestReply.AddContact(contact)
+		}
+		return nil, kClosestReply.GetContactsAndCalcDistances(hash)
+	} else {
+		// FIND_DATA_ACK_SUCCESS
+		// Success!!
+		return reply[1:],nil
+	}
+
 }
 
-func (network *Network) storeDataRPC(contact Contact, hash KademliaID, data []byte) {
+
+func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []byte) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 	fmt.Println("Connection established!")
 
@@ -325,9 +406,9 @@ func (network *Network) storeDataRPC(contact Contact, hash KademliaID, data []by
 // We don't want to send back the requester its own ID so that it has itself in its own bucket.
 // removeSelfOrTail therefore grabs a bucket of size k+1 and either remove the requesterID if it exists,
 // or the tail (the furthest one away of the 21 nodes) if it doesn't.
-func removeSelfOrTail(requesterID KademliaID, bucket []Contact) []Contact {
+func removeSelfOrTail(requesterID *KademliaID, bucket []Contact) []Contact {
 	for index, contact := range bucket {
-		if requesterID == *contact.ID {
+		if requesterID == contact.ID {
 			bucket = append(bucket[:index], bucket[index + 1:]...)
 			return bucket
 		}

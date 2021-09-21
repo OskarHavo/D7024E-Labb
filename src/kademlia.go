@@ -18,17 +18,17 @@ func (kademlia *Node) LookupContact(target *Contact) {
 	// TODO
 }
 
-func (kademlia *Node) LookupData(hash KademliaID) []byte {
-	if kademlia.storage[hash] == nil {
+func (kademlia *Node) LookupData(hash *KademliaID) []byte {
+	if kademlia.storage[*hash] == nil {
 		return nil
 	}
-	return kademlia.storage[hash]
+	return kademlia.storage[*hash]
 }
 
-func (kademlia *Node) Store(data []byte, hash KademliaID) {
-	if  kademlia.storage[hash] != nil{
+func (kademlia *Node) Store(data []byte, hash *KademliaID) {
+	if  kademlia.storage[*hash] != nil{
 		// TODO Throw some error or something
 		return
 	}
-	kademlia.storage[hash] = data
+	kademlia.storage[*hash] = data
 }
