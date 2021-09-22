@@ -249,9 +249,9 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 			// TODO: Do this asynchronously?
 			newBucket := network.findNodeRPC(&nodesToVisit[i], lookupID, &visited, &unvisited) // Send RPC
 			newRoundNodes = append(newRoundNodes, newBucket...)
-
-			network.updateKClosest(&visited, &unvisited, newBucket)
 		}
+		network.updateKClosest(&visited, &unvisited, newRoundNodes)
+		
 		// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
 		// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
 		// "wide search
@@ -301,9 +301,8 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 			if data != nil {
 				return data, nil
 			}
-
-			network.updateKClosest(&visited, &unvisited, newBucket)
 		}
+		network.updateKClosest(&visited, &unvisited, newRoundNodes)
 
 		// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
 		// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
@@ -467,19 +466,20 @@ func removeSelfOrTail(requesterID *KademliaID, bucket []Contact) []Contact {
 
 // updateKClosest updates the list of the k closest nodes used in the NodeLookup algorithm
 // It is done by appending new nodes (non-duplicates) to the unvisited collection
-// and then sorting the list based on distance to the lookupID parameter
 func (network *Network) updateKClosest(visited *ContactCandidates, unvisited *ContactCandidates,
 	newNodes []Contact) {
-	all := *visited
-	all.Append(unvisited.contacts)
-	var toBeAdded []Contact
+	allOld := *visited // All nodes from the previous rounds that we have seen, visited and unvisited
+	allOld.Append(unvisited.contacts)
+	var toBeAdded ContactCandidates
 	for i := 0; i < len(newNodes); i++ {
-		if !all.Contains(&newNodes[i]) {
-			toBeAdded = append(toBeAdded, newNodes[i])
+		// Check for duplicates among the nodes from prev rounds (visited and unvisited)
+		// Check for duplicates among newNodes
+		if !allOld.Contains(&newNodes[i]) && !toBeAdded.Contains(&newNodes[i]) {
+			toBeAdded.AppendContact(newNodes[i])
+			toBeAdded.Sort()
 		}
 	}
-	unvisited.Append(toBeAdded)
-	unvisited.Sort()
+	unvisited.Append(toBeAdded.contacts)
 }
 
 func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k int) bool {
