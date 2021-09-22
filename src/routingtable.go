@@ -1,7 +1,7 @@
 package main
 
 const k = 20
-const alpha = 20
+const alpha = 3
 
 // RoutingTable definition
 // keeps a refrence contact of me and an array of buckets

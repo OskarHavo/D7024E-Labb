@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -53,7 +52,7 @@ func NewNetwork(node *Node) Network {
 	return Network{node}
 }
 
-func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.Conn, msgType byte) {
+func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, msgType byte) {
 	requesterID := (*KademliaID)((*msg)[1:1+IDLength])
 	targetID := (*KademliaID)((*msg)[1+IDLength:1+IDLength+IDLength])
 	bucket := network.localNode.routingTable.FindClosestContacts(targetID, k + 1)
@@ -61,16 +60,23 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.Conn, msgTy
 
 
 	// Prepare reply
-	var reply = make([]byte,1+1+(IDLength+4)*len(bucket)) // 1 byte msg, 1 byte for number of contacts
+	var reply = make([]byte,1+IDLength+1+(IDLength+4)*len(bucket)) // 1 byte msg, 20 byte ID, 1 byte for number of contacts
 	reply[0] = msgType // Set the message type
-	reply[1] = byte(len(bucket))
+	//reply[1:IDLength] = network.localNode.routingTable.me.ID[:]
+	copy(reply[1:IDLength+1],network.localNode.routingTable.me.ID[:])
+	reply[1+IDLength] = byte(len(bucket))
 
 	// Serialize the contacts and put them in the message
 	var i = 0
 	for _,data := range bucket {
-		copy(reply[2+(IDLength+4)*i:2+(IDLength+4)*i+IDLength],data.ID[:])
+		// put node ID
+		copy(reply[2+IDLength+(IDLength+4)*i   :   2+(IDLength+4)*i+IDLength],data.ID[:])
+
+		// Calculate IP address
 		var address = net.ParseIP(data.Address)[12:]
-		copy(reply[(2+IDLength)+(IDLength+4)*i:(2+IDLength)+(IDLength+4)*i+4],address)
+
+		// Put the IP address
+		copy(reply[(2+IDLength+IDLength)+(IDLength+4)*i   :   (2+IDLength)+(IDLength+4)*i+4],address)
 		i++
 	}
 
@@ -81,15 +87,15 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.Conn, msgTy
 }
 
 // Server receive function for network messages
-func (network *Network) unpackMessage(msg *[]byte, connection *net.Conn) {
+func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn) {
 	switch id := (*msg)[0]; id {
 	case PING:
-		if (*msg)[1] == 0{
-			var msg = []byte{PING,1} // PING + ACK
-			(*connection).Write(msg)
-		} else {
-			// TODO notify the user interface of the ping message.
-		}
+
+		reply := make([]byte, 1+IDLength)
+		reply[0] = PING_ACK
+		copy(reply[1:],network.localNode.routingTable.me.ID[:])
+		(*connection).Write(reply)
+		return
 		return
 	case STORE:
 		network.localNode.Store((*msg)[1+IDLength:], (*KademliaID)((*msg)[1:1+IDLength]))
@@ -130,9 +136,10 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.Conn) {
 		ID := (*KademliaID)((*msg)[1:1+IDLength])
 		result := network.localNode.LookupData(ID)
 		if result != nil {
-			var reply = make([]byte,1+len(result))
+			var reply = make([]byte,1+IDLength+len(result))
 			reply[0] = FIND_DATA_ACK_SUCCESS
-			copy(reply[1:],result)
+			copy(reply[1:IDLength+1],network.localNode.routingTable.me.ID[:])
+			copy(reply[IDLength+1:],result)
 			(*connection).Write(reply)
 		} else {
 			network.sendFindNodeAck(msg,connection,FIND_DATA_ACK_FAIL)
@@ -142,36 +149,42 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.Conn) {
 }
 
 // Listen for incoming connections
-func (network *Network) Listen(ip string, port string) {
-	conn, err := net.Listen("udp", port)
+func (network *Network) Listen(ip string, port int) {
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{
+		Port:5001,
+	})
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		for {
-			c, err := conn.Accept()
-			if err == nil {
-				var msg []byte = nil
-				c.Read(msg)
-			}
+			var msg []byte = nil
+			conn.Read(msg)
+
+			ID := (*KademliaID)(msg[1:1+IDLength])
+			contact := NewContact(ID,conn.RemoteAddr().String())
+			network.kickThebucket(&contact)
+
+			network.unpackMessage(&msg,conn)
 		}
+		conn.Close()
 	}
 }
 
 func (network *Network) Join(id *KademliaID, address string) {
 	knownNode := NewContact(id, address)
-	network.localNode.routingTable.AddContact(knownNode)
+	//network.localNode.routingTable.AddContact(knownNode)
 
 	if network.Ping(&knownNode) { // If Ping is successful
-		network.localNode.routingTable.AddContact(knownNode) // Add node to routingtable locally
-		newContacts := network.NodeLookup(network.localNode.routingTable.me.ID) // Start lookup algorithm on yourself
-		for _, contact := range newContacts {
-			network.localNode.routingTable.AddContact(contact)
-		}
+		//network.localNode.routingTable.AddContact(knownNode) // Add node to routingtable locally
+		network.NodeLookup(network.localNode.routingTable.me.ID) // Start lookup algorithm on yourself
+		//for _, contact := range newContacts {
+		//	network.localNode.routingTable.AddContact(contact)
+		//}
 	}
 }
 
+// TODO This needs to comply with the new message structure
 func (network *Network) Ping(contact *Contact) bool {
-	reply := make([]byte, 256)
 
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
@@ -182,13 +195,21 @@ func (network *Network) Ping(contact *Contact) bool {
 		fmt.Println("Connection established to " + contact.ID.String() + "!")
 	}
 
+	reply := make([]byte, 1+IDLength)
+	reply[0] = PING
+	copy(reply[1:],network.localNode.routingTable.me.ID[:])
+
 	start := time.Now()
-	conn.Write([]byte("This is a ping msg!" + "\n"))
+	conn.Write(reply)
+	conn.SetReadDeadline(time.Now().Add(1*time.Second)) // TODO Change to something more appropriate
 	conn.Read(reply)
+	conn.Close()
 	duration := time.Since(start)
 
-	fReply := strings.Split(string(reply), "\n")
-	if fReply[0] == "Ack!" {
+	network.kickThebucket(contact)
+
+	//fReply := strings.Split(string(reply), "\n")
+	if reply[0] == PING_ACK {
 		fmt.Println("Pinging node " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
 			10) + " ms")
 		return true
@@ -236,6 +257,19 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 		// "wide search
 		wideSearch = doWideSearch(newRoundNodes, nodesToVisit[0])
 	}
+
+	// Nod x skickar findRPC till node Y
+	// Nod y:
+	// Skickar K andra noder tillbaka och uppdaterar sin routingtable med x
+
+	// Nod x skickar findRPC till alpha andra noder bland svaren från Y
+	// För varje svar:
+	// 		Nod X lägger till nyupptäckta noden i sin routingtable
+
+	// ...
+
+	// Nod X hittar noden den söker efter
+
 
 	return visited.GetContacts(k)
 }
@@ -333,14 +367,25 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 		unvisited.Remove(contact)
 		visited.AppendContact(*contact)
 
-		reply := make([]byte,1+1+(IDLength+4)*k)
+		msg := make([]byte,1+IDLength+IDLength)
+		msg[0] = FIND_NODE
+		copy(msg[1:1+IDLength],network.localNode.routingTable.me.ID[:])
+		copy(msg[1+IDLength:1+IDLength+IDLength],contact.ID[:])
+		conn.Write(msg)
+
+		reply := make([]byte,1+IDLength+1+(IDLength+4)*k)
 		conn.Read(reply)
-		totalContacts := int(reply[1])
+		conn.Close()
+
+		// TODO This updates the routing table with the node we just queried.
+		network.kickThebucket(contact)
+
+		totalContacts := int(reply[1+IDLength])
 		var kClosestReply bucket
 		for i := 0; i < totalContacts;i++ {
-			id := reply[2+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
+			id := reply[2+IDLength+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
 			IP := net.IP{}
-			copy(IP[12:],reply[2+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
+			copy(IP[12:],reply[2+IDLength+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
 			contact := NewContact((*KademliaID)(id),IP.String())
 
 			kClosestReply.AddContact(contact)
@@ -360,22 +405,27 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 		fmt.Println("Sending findDataRPC ...")
 	}
 
-	payload := make([]byte, 1)
+	payload := make([]byte, 1+IDLength)
 	payload[0] = FIND_DATA
-	payload = append(payload, network.localNode.routingTable.me.ID[:]...)
+	copy(payload[1:1+IDLength],network.localNode.routingTable.me.ID[:])
 	payload = append(payload, hash[:]...)
 	conn.Write(payload)
 
-	reply := make([]byte,1+1+(IDLength+4)*k)
+	reply := make([]byte,1+IDLength+1+(IDLength+4)*k)
 	conn.Read(reply)
+	conn.Close()
+
+
+	// TODO This updates the routing table with the node we just queried.
+	network.kickThebucket(contact)
 
 	if reply[0] == FIND_DATA_ACK_FAIL {
-		totalContacts := int(reply[1])
+		totalContacts := int(reply[1+IDLength])
 		var kClosestReply bucket
 		for i := 0; i < totalContacts;i++ {
-			id := reply[2+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
+			id := reply[2+IDLength+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
 			IP := net.IP{}
-			copy(IP[12:],reply[2+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
+			copy(IP[12:],reply[2+IDLength+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
 			contact := NewContact((*KademliaID)(id),IP.String())
 
 			kClosestReply.AddContact(contact)
@@ -399,8 +449,9 @@ func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []b
 		fmt.Println("Sending storeDataRPC ...")
 
 		// Prepare STORE RPC
-		storeMessage := make([]byte, 1)
+		storeMessage := make([]byte, 1+IDLength)
 		storeMessage[0] = STORE
+		copy(storeMessage[1:],network.localNode.routingTable.me.ID[:])
 		storeMessage = append(storeMessage, hash[:]...)
 		storeMessage = append(storeMessage, data...)
 
@@ -451,4 +502,33 @@ func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k i
 		return true
 	}
 	return false
+}
+
+// Check if a bucket is full and then kick one node if it does not respond to a ping message.
+// Call this function whenever you want to add a new node to the routing table. The node can either
+// already exist in a bucket or be a new node.
+func (network *Network) kickThebucket(contact *Contact) {
+
+	// First find the appropriate bucket
+	bucketIndex := network.localNode.routingTable.getBucketIndex(contact.ID)
+	bucket := network.localNode.routingTable.buckets[bucketIndex]
+
+	if bucket.Len() == k {
+		element := bucket.Contains(contact)
+		if element != nil {
+			bucket.list.MoveToFront(element)
+		} else {
+			// Choose a node to sacrifice
+			sacrifice := bucket.list.Back().Value.(Contact)
+
+			if network.Ping(&sacrifice) {
+				fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
+			} else {
+				bucket.list.Remove(bucket.list.Back())
+				bucket.AddContact(*contact)
+			}
+		}
+	} else {
+		bucket.AddContact(*contact)
+	}
 }

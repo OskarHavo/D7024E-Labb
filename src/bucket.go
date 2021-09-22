@@ -38,6 +38,19 @@ func (bucket *bucket) AddContact(contact Contact) {
 	}
 }
 
+func (bucket *bucket) Contains(contact *Contact)  *list.Element {
+	var element *list.Element
+	for e := bucket.list.Front(); e != nil; e = e.Next() {
+		nodeID := e.Value.(Contact).ID
+
+		if (contact).ID.Equals(nodeID) {
+			element = e
+		}
+	}
+
+	return element
+}
+
 // returns an array of Contacts where
 // the distance has already been calculated
 func (bucket *bucket) GetContactsAndCalcDistances(target *KademliaID) []Contact {

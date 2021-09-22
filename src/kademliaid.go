@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"math/rand"
+	"net"
 )
 
 // the static number of bytes in a KademliaID
@@ -14,6 +15,18 @@ type KademliaID [IDLength]byte
 // NewKademliaID returns a new instance of a KademliaID based on the string input
 func NewKademliaID(data string) *KademliaID {
 	decoded, _ := hex.DecodeString(data)
+
+	newKademliaID := KademliaID{}
+	for i := 0; i < IDLength; i++ {
+		newKademliaID[i] = decoded[i]
+	}
+
+	return &newKademliaID
+}
+
+// Create kademlia ID from an IP address, for example a node.
+func NewKademliaIDFromIP(ip net.IP) *KademliaID {
+	decoded, _ := hex.DecodeString(ip.String())
 
 	newKademliaID := KademliaID{}
 	for i := 0; i < IDLength; i++ {
