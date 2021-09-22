@@ -183,7 +183,8 @@ func (network *Network) Join(id *KademliaID, address string) {
 	}
 }
 
-// TODO This needs to comply with the new message structure
+// Ping some node directly with the given contact.address. Returns if true if the node responded successfully,
+// and false if it did not
 func (network *Network) Ping(contact *Contact) bool {
 
 	conn, err := net.Dial("udp", contact.Address + ":5001")
@@ -208,7 +209,6 @@ func (network *Network) Ping(contact *Contact) bool {
 
 	network.kickThebucket(contact)
 
-	//fReply := strings.Split(string(reply), "\n")
 	if reply[0] == PING_ACK {
 		fmt.Println("Pinging node " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
 			10) + " ms")
@@ -258,19 +258,6 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 		wideSearch = doWideSearch(newRoundNodes, nodesToVisit[0])
 	}
 
-	// Nod x skickar findRPC till node Y
-	// Nod y:
-	// Skickar K andra noder tillbaka och uppdaterar sin routingtable med x
-
-	// Nod x skickar findRPC till alpha andra noder bland svaren från Y
-	// För varje svar:
-	// 		Nod X lägger till nyupptäckta noden i sin routingtable
-
-	// ...
-
-	// Nod X hittar noden den söker efter
-
-
 	return visited.GetContacts(k)
 }
 
@@ -309,7 +296,7 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 		var newRoundNodes []Contact
 		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
 		for i := 0; i < len(nodesToVisit); i++ {
-			data, newBucket = network.findDataRPC(&nodesToVisit[i], hash) // Send RPC
+			data, newBucket = network.findDataRPC(&nodesToVisit[i], hash, &visited, &unvisited) // Send RPC
 			newRoundNodes = append(newRoundNodes, newBucket...)
 			if data != nil {
 				return data, nil
@@ -394,47 +381,52 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 	}
 }
 
-func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte, []Contact) {
+func (network *Network) findDataRPC(contact *Contact, hash *KademliaID,
+	visited *ContactCandidates, unvisited *ContactCandidates) ([]byte, []Contact) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findDataRPC to " + contact.ID.String())
-		// TODO: Tcp? Try again?
+
+		return nil, nil
 	} else {
 		fmt.Println("Connection established to " + contact.ID.String() + "!")
 		fmt.Println("Sending findDataRPC ...")
-	}
 
-	payload := make([]byte, 1+IDLength)
-	payload[0] = FIND_DATA
-	copy(payload[1:1+IDLength],network.localNode.routingTable.me.ID[:])
-	payload = append(payload, hash[:]...)
-	conn.Write(payload)
+		// We are visiting the node, so we move it from unvisited to visited collection
+		unvisited.Remove(contact)
+		visited.AppendContact(*contact)
 
-	reply := make([]byte,1+IDLength+1+(IDLength+4)*k)
-	conn.Read(reply)
-	conn.Close()
+		payload := make([]byte, 1+IDLength)
+		payload[0] = FIND_DATA
+		copy(payload[1:1+IDLength],network.localNode.routingTable.me.ID[:])
+		payload = append(payload, hash[:]...)
+		conn.Write(payload)
 
+		reply := make([]byte,1+IDLength+1+(IDLength+4)*k)
+		conn.Read(reply)
+		conn.Close()
 
-	// TODO This updates the routing table with the node we just queried.
-	network.kickThebucket(contact)
+		// TODO This updates the routing table with the node we just queried.
+		network.kickThebucket(contact)
 
-	if reply[0] == FIND_DATA_ACK_FAIL {
-		totalContacts := int(reply[1+IDLength])
-		var kClosestReply bucket
-		for i := 0; i < totalContacts;i++ {
-			id := reply[2+IDLength+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
-			IP := net.IP{}
-			copy(IP[12:],reply[2+IDLength+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
-			contact := NewContact((*KademliaID)(id),IP.String())
+		if reply[0] == FIND_DATA_ACK_FAIL {
+			totalContacts := int(reply[1+IDLength])
+			var kClosestReply bucket
+			for i := 0; i < totalContacts;i++ {
+				id := reply[2+IDLength+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
+				IP := net.IP{}
+				copy(IP[12:],reply[2+IDLength+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
+				contact := NewContact((*KademliaID)(id),IP.String())
 
-			kClosestReply.AddContact(contact)
+				kClosestReply.AddContact(contact)
+			}
+			return nil, kClosestReply.GetContactsAndCalcDistances(hash)
+		} else {
+			// FIND_DATA_ACK_SUCCESS
+			// Success!!
+			return reply[1:],nil
 		}
-		return nil, kClosestReply.GetContactsAndCalcDistances(hash)
-	} else {
-		// FIND_DATA_ACK_SUCCESS
-		// Success!!
-		return reply[1:],nil
 	}
 
 }
