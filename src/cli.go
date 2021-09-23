@@ -2,23 +2,56 @@ package main
 
 import (
 	"bufio"
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 )
 
 func main() {
-	hashmap := make(map[string]string) //temp for test
+	addrs,err := net.InterfaceAddrs()
+	if err != nil {
+		os.Stderr.WriteString("Oops: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	var IP net.IP
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				IP = ipnet.IP
+				fmt.Println(ipnet.IP.String() + "\n")
+			}
+		}
+	}
+	//ip := addrs[1].(*net.IPNet).IP
+	net := NewNetwork(&IP)
+	go net.Listen()
+
+	//hashmap := make(map[string]string) //temp for test
 	for {
 		fmt.Printf("\n Enter a command: ")
 		rawInput, _ := bufio.NewReader(os.Stdin).ReadString('\n') // Takes rawinput from console.
-		output := parseInput(rawInput, hashmap)
+		output := parseInput(rawInput, &net)
 		fmt.Println(output)
+
+		/*
+		if err != nil {
+			os.Stderr.WriteString("Oops: " + err.Error() + "\n")
+			os.Exit(1)
+		}
+*/
+		//fmt.Println("My IP is: " + addrs[1].(*net.IPNet).IP.String())
+/*
+		for _, a := range addrs {
+			if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					os.Stdout.WriteString(ipnet.IP.String() + "\n")
+				}
+			}
+		}*/
 	}
 }
-func parseInput(input string, hashmap map[string]string) string {
+func parseInput(input string, net *Network) string {
 	var command string
 	var value string
 
@@ -30,7 +63,7 @@ func parseInput(input string, hashmap map[string]string) string {
 	if len(stringinput) > 1 { // Checks if you have 1 or 2 Commands and then runs the correct function accordingly.
 		value = stringinput[1]
 		value = strings.ToLower(strings.Trim(value, " \r\n"))
-		return handleDualInput(command, value, hashmap)
+		return handleDualInput(command, value, net)
 	} else {
 		return handleSingleInput(command, 0)
 	}
@@ -46,13 +79,18 @@ func handleSingleInput(command string, testing int) string {
 		return "INVALID COMMAND, TYPE HELP"
 	}
 }
-func handleDualInput(command string, value string, hashmap map[string]string) string {
+func handleDualInput(command string, value string, network *Network) string {
 
 	switch command {
 	case "put":
-		return put(value, hashmap)
+		return put(value, network)
+	case "join":
+		IP := net.ParseIP(value)[12:]
+		ID := NewKademliaIDFromIP(&IP)
+		network.Join(ID,value)
+		return ""
 	case "get":
-		outputNodeID, outputContent := get(value, hashmap)
+		outputNodeID, outputContent := get(value, network)
 		outputString := ("NodeID: " + outputNodeID + "  Content: " + outputContent)
 		return outputString
 
@@ -64,21 +102,34 @@ func handleDualInput(command string, value string, hashmap map[string]string) st
 // Upload data of file downloaded
 // Check if it can be uploaded
 // if so, output the objects hash
-func put(content string, hashmap map[string]string) string {
-	hashedFileString := sha1Hash(content)
+func put(content string, net *Network) string {
+	hashedFileString := NewKademliaID(content)
+	net.Store([]byte(content),hashedFileString)
+	/*
 	_, exists := hashmap[hashedFileString] // Checks if value already exists
 	if exists {
 		return "Uploaded File Already Exists"
 	} else {
 		hashmap[hashedFileString] = content /// Adds the content and outputs the hash
 		return hashedFileString
-	}
+	}*/
+	return hashedFileString.String()
 }
 
 // Take hash value as output
 // Check if that exists in kademlia and download
 // if so, output the contents of the objects and the node it was retrieved from.
-func get(hashvalue string, hashmap map[string]string) (string, string) {
+func get(hashValue string, net *Network) (string, string) {
+	hash := (*KademliaID)([]byte(hashValue))
+	data, _ := net.DataLookup(hash)
+
+	// TODO What ID should this be?
+	if data != nil {
+		return "NodeID?",string(data)
+	} else {
+		return "NodeID?", ("Hashvalue Does Not Exist In The Network")
+	}
+	/*
 	nodeID := "000101010100101"         // Temp value
 	value, exists := hashmap[hashvalue] // Retrieve value from hashmap.
 	if exists {
@@ -86,6 +137,7 @@ func get(hashvalue string, hashmap map[string]string) (string, string) {
 	} else {
 		return nodeID, ("Hashvalue Does Not Exist In The Hashmap")
 	}
+	 */
 }
 
 // Terminate node.
@@ -104,12 +156,5 @@ func help() string {
 		    "Exit -Terminates the node. " + "\n")
 }
 
-// Performs Sha-1 Hashing and encodes it into a String.
-func sha1Hash(content string) string {
-	// https://gobyexample.com/sha1-hashes
-	h := sha1.New()
-	h.Write([]byte(content))
-	hashedFileBytes := h.Sum(nil)
-	hashedFileString := hex.EncodeToString(hashedFileBytes) // Encode byte[] to string before entering it into the hashmap.
-	return hashedFileString
-}
+// TODO Don't worry, the hash function is not gone. It has been moved to the kademlia ID where we actually need it.
+// TODO Delete these comments

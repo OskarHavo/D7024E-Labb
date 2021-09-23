@@ -45,11 +45,11 @@ const (
 )
 
 type Network struct {
-	localNode *Node
+	localNode Node
 }
 
-func NewNetwork(node *Node) Network {
-	return Network{node}
+func NewNetwork(ip *net.IP) Network {
+	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String()))}
 }
 
 func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, msgType byte) {
@@ -149,7 +149,10 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn) {
 }
 
 // Listen for incoming connections
-func (network *Network) Listen(ip string, port int) {
+func (network *Network) Listen() {
+
+
+
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{
 		Port:5001,
 	})
@@ -175,6 +178,7 @@ func (network *Network) Join(id *KademliaID, address string) {
 	//network.localNode.routingTable.AddContact(knownNode)
 
 	if network.Ping(&knownNode) { // If Ping is successful
+		fmt.Println("Joined network node " + knownNode.Address +" successfully!")
 		//network.localNode.routingTable.AddContact(knownNode) // Add node to routingtable locally
 		network.NodeLookup(network.localNode.routingTable.me.ID) // Start lookup algorithm on yourself
 		//for _, contact := range newContacts {
@@ -258,7 +262,11 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 		wideSearch = doWideSearch(newRoundNodes, nodesToVisit[0])
 	}
 
-	return visited.GetContacts(k)
+	if visited.Len() < k {
+		return visited.GetContacts(visited.Len())
+	} else {
+		return visited.GetContacts(k)
+	}
 }
 
 func doWideSearch(newContacts []Contact, closest Contact) bool {
@@ -309,14 +317,21 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 		// "wide search
 		wideSearch = doWideSearch(newRoundNodes, nodesToVisit[0])
 	}
-	return nil, visited.GetContacts(k)
+
+	if visited.Len() < k {
+		return nil, visited.GetContacts(visited.Len())
+	} else {
+		return nil, visited.GetContacts(k)
+	}
 }
 
 // Store sends a store msg to the 20th closest nodes a bucket
 func (network *Network) Store(data []byte, hash *KademliaID) {
 	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
 	network.localNode.routingTable.me.CalcDistance(hash)
-	if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) {
+	if len(nodes) == 0 {
+		nodes = append(nodes, network.localNode.routingTable.me)
+	} else if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) {
 		// If the locals node distance is less than the last node in the bucket,
 		// Im actually supposed to be in the bucket and not that node.
 		nodes[len(nodes)-1] = network.localNode.routingTable.me

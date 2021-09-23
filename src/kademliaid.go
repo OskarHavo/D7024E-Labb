@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha1"
 	"encoding/hex"
 	"math/rand"
 	"net"
@@ -12,9 +13,19 @@ const IDLength = 20
 // type definition of a KademliaID
 type KademliaID [IDLength]byte
 
+func sha1Hash(content string) []byte {
+	// https://gobyexample.com/sha1-hashes
+	h := sha1.New()
+	h.Write([]byte(content))
+	hashedFileBytes := h.Sum(nil)
+	//hashedFileString := hex.EncodeToString(hashedFileBytes) // Encode byte[] to string before entering it into the hashmap.
+	return hashedFileBytes
+}
+
 // NewKademliaID returns a new instance of a KademliaID based on the string input
 func NewKademliaID(data string) *KademliaID {
-	decoded, _ := hex.DecodeString(data)
+	//decoded, _ := hex.DecodeString(data)
+	decoded := sha1Hash(data)
 
 	newKademliaID := KademliaID{}
 	for i := 0; i < IDLength; i++ {
@@ -25,9 +36,9 @@ func NewKademliaID(data string) *KademliaID {
 }
 
 // Create kademlia ID from an IP address, for example a node.
-func NewKademliaIDFromIP(ip net.IP) *KademliaID {
-	decoded, _ := hex.DecodeString(ip.String())
-
+func NewKademliaIDFromIP(ip *net.IP) *KademliaID {
+	//decoded, _ := hex.DecodeString(ip.String())
+	decoded := sha1Hash(ip.String())
 	newKademliaID := KademliaID{}
 	for i := 0; i < IDLength; i++ {
 		newKademliaID[i] = decoded[i]
