@@ -51,7 +51,7 @@ type Network struct {
 func NewNetwork(ip *net.IP) Network {
 	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String()))}
 }
-
+// TODO - dokumentation.
 func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, msgType byte) {
 	requesterID := (*KademliaID)((*msg)[1:1+IDLength])
 	targetID := (*KademliaID)((*msg)[1+IDLength:1+IDLength+IDLength])
@@ -166,7 +166,7 @@ func (network *Network) Listen() {
 		conn.Close()
 	}
 }
-
+// TODO- Dokumentation
 func (network *Network) Join(id *KademliaID, address string) {
 	knownNode := NewContact(id, address)
 	//network.localNode.routingTable.AddContact(knownNode)
@@ -355,7 +355,7 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 		}
 	}
 }
-
+// TODO- Dokumentation
 func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 	visited *ContactCandidates, unvisited *ContactCandidates) []Contact {
 
@@ -403,7 +403,7 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 		return kClosestReply.GetContactsAndCalcDistances(targetID)
 	}
 }
-
+// TODO- Dokumentation
 func (network *Network) findDataRPC(contact *Contact, hash *KademliaID,
 	visited *ContactCandidates, unvisited *ContactCandidates) ([]byte, []Contact) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
@@ -453,7 +453,7 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID,
 	}
 
 }
-
+// TODO- Dokumentation
 func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []byte) {
 	conn, err := net.Dial("udp", contact.Address + ":5001")
 
@@ -505,7 +505,7 @@ func (network *Network) updateKClosest(visited *ContactCandidates, unvisited *Co
 	}
 	unvisited.Append(toBeAdded.contacts)
 }
-
+// TODO- Dokumentation
 func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k int) bool {
 	if visited.Len() < k { // Cant have visited k closest if we haven't even visited k nodes yet
 		return false

@@ -4,7 +4,7 @@ const k = 20
 const alpha = 3
 
 // RoutingTable definition
-// keeps a refrence contact of me and an array of buckets
+// keeps a reference contact of me and an array of buckets
 type RoutingTable struct {
 	me      Contact
 	buckets [IDLength * 8]*bucket
@@ -35,6 +35,7 @@ func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count 
 
 	candidates.Append(bucket.GetContactsAndCalcDistances(target))
 
+	// TODO- Dokumentation
 	for i := 1; (bucketIndex-i >= 0 || bucketIndex+i < IDLength*8) && candidates.Len() < count; i++ {
 		if bucketIndex-i >= 0 {
 			bucket = routingTable.buckets[bucketIndex-i]
@@ -60,7 +61,7 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	distance := id.CalcDistance(routingTable.me.ID)
 	for i := 0; i < IDLength; i++ {
 		for j := 0; j < 8; j++ {
-			if (distance[i]>>uint8(7-j))&0x1 != 0 {
+			if (distance[i]>>uint8(7-j))&0x1 != 0 { // TODO- Dokumentation
 				return i*8 + j
 			}
 		}

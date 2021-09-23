@@ -158,6 +158,3 @@ func help() string {
 		    "Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
 		    "Exit -Terminates the node. " + "\n")
 }
-
-// TODO Don't worry, the hash function is not gone. It has been moved to the kademlia ID where we actually need it.
-// TODO Delete these comments

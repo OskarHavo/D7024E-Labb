@@ -9,6 +9,18 @@ import (
 // Functions must be TestXxxx(t *testing.T)
 // Then --> go test cli_test.go cli.go -v -cover
 
+
+
+
+// REDO :/
+
+
+
+
+
+
+
+
 func TestPut(t *testing.T) {
 	// Set Up
 	hashmap := make(map[string]string) //temp for test
