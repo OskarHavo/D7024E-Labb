@@ -87,52 +87,40 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, ms
 }
 
 // Server receive function for network messages
-func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn) {
-	switch id := (*msg)[0]; id {
+func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, contact *Contact) {
+	switch message_type := (*msg)[0]; message_type {
 	case PING:
-
+		fmt.Println("Received a ping message. Sending ack")
 		reply := make([]byte, 1+IDLength)
 		reply[0] = PING_ACK
+
 		copy(reply[1:],network.localNode.routingTable.me.ID[:])
+
+		// TODO DOES NOT WORK??
 		(*connection).Write(reply)
+		address := net.UDPAddr{
+			Port: 5001,
+			IP: net.ParseIP(contact.Address),
+		}
+		(*connection).WriteToUDP(reply,&address)
+
 		return
+	case PING_ACK:
+		//fmt.Println("Received PING ACK!!!!!!")
 		return
 	case STORE:
+		fmt.Println("Received a store message.")
 		network.localNode.Store((*msg)[1+IDLength:], (*KademliaID)((*msg)[1:1+IDLength]))
 		return
 	case STORE_ACK:
 		// TODO I dunno, send a message to the GUI or something.
 		return
 	case FIND_NODE:
-		/*
-		requesterID := (*KademliaID)((*msg)[1:1+IDLength])
-		targetID := (*KademliaID)((*msg)[1+IDLength:1+IDLength+IDLength])
-		bucket := network.localNode.routingTable.FindClosestContacts(targetID, k + 1)
-		bucket = removeSelfOrTail(requesterID, bucket)
-
-
-		// Prepare reply
-		var reply = make([]byte,1+1+(IDLength+4)*len(bucket)) // 1 byte msg, 1 byte for number of contacts
-		reply[0] = FIND_NODE_ACK // Set the message type
-		reply[1] = byte(len(bucket))
-
-		// Serialize the contacts and put them in the message
-		var i = 0
-		for _,data := range bucket {
-			copy(reply[2+(IDLength+4)*i:2+(IDLength+4)*i+IDLength],data.ID[:])
-			var address = net.ParseIP(data.Address)[12:]
-			copy(reply[(2+IDLength)+(IDLength+4)*i:(2+IDLength)+(IDLength+4)*i+4],address)
-			i++
-		}
-
-		// Final structure of message:
-		// FIND_NODE_ACK + number of contacts + (ID + IP) + (ID + IP) + ...
-
-		(*connection).Write(reply)
-		 */
+		fmt.Println("Received a find node message. Sending ack")
 		network.sendFindNodeAck(msg,connection, FIND_NODE_ACK)
 		return
 	case FIND_DATA:
+		fmt.Println("Received a find data message. Sending ack")
 		ID := (*KademliaID)((*msg)[1:1+IDLength])
 		result := network.localNode.LookupData(ID)
 		if result != nil {
@@ -152,7 +140,7 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn) {
 func (network *Network) Listen() {
 
 
-
+	// TODO DOES NOT WORK??
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{
 		Port:5001,
 	})
@@ -161,13 +149,19 @@ func (network *Network) Listen() {
 	} else {
 		for {
 			msg := make([]byte,256)
-			conn.Read(msg)
-			fmt.Println("Received message: " + string(msg))
+			_,addr,_ := conn.ReadFromUDP(msg)
+			fmt.Println("Received message: ")
 			ID := (*KademliaID)(msg[1:1+IDLength])
-			contact := NewContact(ID,conn.RemoteAddr().String())
+			fmt.Println("    ID: " + ID.String())
+			fmt.Println("    IP: " + addr.String())
+
+
+			fmt.Println("Attempting to create a contact")
+			contact := NewContact(ID,addr.String())
+			fmt.Println("Attempting to kick the bucket")
 			network.kickThebucket(&contact)
 
-			network.unpackMessage(&msg,conn)
+			network.unpackMessage(&msg,conn,&contact)
 		}
 		conn.Close()
 	}
@@ -192,7 +186,6 @@ func (network *Network) Join(id *KademliaID, address string) {
 func (network *Network) Ping(contact *Contact) bool {
 
 	conn, err := net.Dial("udp", contact.Address + ":5001")
-
 	if err != nil {
 		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
 		return false
@@ -205,22 +198,32 @@ func (network *Network) Ping(contact *Contact) bool {
 	copy(reply[1:],network.localNode.routingTable.me.ID[:])
 
 	start := time.Now()
+	//conn.Write(reply)
 	conn.Write(reply)
-	conn.SetReadDeadline(time.Now().Add(1*time.Second)) // TODO Change to something more appropriate
-	conn.Read(reply)
+
+
+
+	// TODO DOES NOT WORK??
+	tmp := make([]byte,255)
+	conn.SetReadDeadline(time.Now().Add(20*time.Second)) // TODO Change to something more appropriate
+	//conn.Read(tmp)
+	conn.Read(tmp)
 	conn.Close()
+
 	duration := time.Since(start)
 
 	network.kickThebucket(contact)
 
-	if reply[0] == PING_ACK {
+	if tmp[0] == PING_ACK {
 		fmt.Println("Pinging node " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
 			10) + " ms")
 		return true
 	} else {
-		fmt.Println("Received unrecognized response from node " + contact.ID.String() + " when pinged")
+		fmt.Println("Received unrecognized response from node " + (*KademliaID)(tmp[1:]).String() + " when pinged\n" +
+			"    Received message of type " + strconv.FormatInt(int64(tmp[0]),10))
 		return false
 	}
+
 }
 
 func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {

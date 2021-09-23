@@ -25,6 +25,7 @@ func main() {
 	}
 	//ip := addrs[1].(*net.IPNet).IP
 	net := NewNetwork(&IP)
+	fmt.Println("Started node with ID " + net.localNode.routingTable.me.ID.String())
 	go net.Listen()
 
 	//hashmap := make(map[string]string) //temp for test
