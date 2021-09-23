@@ -103,7 +103,7 @@ func handleDualInput(command string, value string, network *Network) string {
 // Check if it can be uploaded
 // if so, output the objects hash
 func put(content string, net *Network) string {
-	hashedFileString := NewKademliaID(content)
+	hashedFileString := NewKademliaIDFromData(content)
 	net.Store([]byte(content),hashedFileString)
 	/*
 	_, exists := hashmap[hashedFileString] // Checks if value already exists
@@ -120,14 +120,16 @@ func put(content string, net *Network) string {
 // Check if that exists in kademlia and download
 // if so, output the contents of the objects and the node it was retrieved from.
 func get(hashValue string, net *Network) (string, string) {
-	hash := (*KademliaID)([]byte(hashValue))
-	data, _ := net.DataLookup(hash)
+	hash := NewKademliaID(hashValue)
+	data, nodes := net.DataLookup(hash)
 
 	// TODO What ID should this be?
 	if data != nil {
-		return "NodeID?",string(data)
+		return nodes[0].ID.String(),string(data)
+	} else if len(nodes) > 0{
+		return nodes[0].ID.String(), ("Hashvalue Does Not Exist In The Network")
 	} else {
-		return "NodeID?", ("Hashvalue Does Not Exist In The Network")
+		return "[NULL]", ("Could not find node or data in the network")
 	}
 	/*
 	nodeID := "000101010100101"         // Temp value

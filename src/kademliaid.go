@@ -24,6 +24,17 @@ func sha1Hash(content string) []byte {
 
 // NewKademliaID returns a new instance of a KademliaID based on the string input
 func NewKademliaID(data string) *KademliaID {
+	decoded, _ := hex.DecodeString(data)
+
+	newKademliaID := KademliaID{}
+	for i := 0; i < IDLength; i++ {
+		newKademliaID[i] = decoded[i]
+	}
+
+	return &newKademliaID
+}
+
+func NewKademliaIDFromData(data string) *KademliaID {
 	//decoded, _ := hex.DecodeString(data)
 	decoded := sha1Hash(data)
 

@@ -160,9 +160,9 @@ func (network *Network) Listen() {
 		fmt.Println(err)
 	} else {
 		for {
-			var msg []byte = nil
+			msg := make([]byte,256)
 			conn.Read(msg)
-
+			fmt.Println("Received message: " + string(msg))
 			ID := (*KademliaID)(msg[1:1+IDLength])
 			contact := NewContact(ID,conn.RemoteAddr().String())
 			network.kickThebucket(&contact)
@@ -281,6 +281,12 @@ func doWideSearch(newContacts []Contact, closest Contact) bool {
 // DataLookup works exactly like NodeLookup, except that we return data instead of a bucket if we find it from
 // any of the findDataRPCs (which replaces findNodeRPC from NodeLookup)
 func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
+
+	local_data := network.localNode.LookupData(hash)
+	if local_data != nil {
+		return local_data, []Contact{network.localNode.routingTable.me}
+	}
+
 	var visited ContactCandidates
 	var unvisited ContactCandidates
 	initNodes := network.localNode.routingTable.FindClosestContacts(hash, k)
@@ -307,7 +313,7 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 			data, newBucket = network.findDataRPC(&nodesToVisit[i], hash, &visited, &unvisited) // Send RPC
 			newRoundNodes = append(newRoundNodes, newBucket...)
 			if data != nil {
-				return data, nil
+				return data, []Contact{nodesToVisit[i]}
 			}
 		}
 		network.updateKClosest(&visited, &unvisited, newRoundNodes)
