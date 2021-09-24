@@ -59,8 +59,12 @@ func parseInput(input string, net *Network) string {
 
 	stringinput := strings.Fields(input) //Splits the text into an array with each entry being a word
 
-	command = stringinput[0]
-	command = strings.ToLower(strings.Trim(command, " \r\n")) //Removes hidden \n etc, which makes string comparision impossible.
+	if len(stringinput) > 0 {
+		command = stringinput[0]
+		command = strings.ToLower(strings.Trim(command, " \r\n")) //Removes hidden \n etc, which makes string comparision impossible.
+	} else {
+		fmt.Println("Blank input. Try again.")
+	}
 
 	if len(stringinput) > 1 { // Checks if you have 1 or 2 Commands and then runs the correct function accordingly.
 		value = stringinput[1]
@@ -82,14 +86,13 @@ func handleSingleInput(command string, testing int) string {
 	}
 }
 func handleDualInput(command string, value string, network *Network) string {
-
 	switch command {
 	case "put":
 		return put(value, network)
 	case "join":
 		IP := net.ParseIP(value)[12:]
 		ID := NewKademliaIDFromIP(&IP)
-		network.Join(ID,value)
+		network.Join(ID, value)
 		return ""
 	case "get":
 		outputNodeID, outputContent := get(value, network)
