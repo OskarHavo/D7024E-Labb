@@ -73,10 +73,14 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, ad
 		copy(reply[2+IDLength+(IDLength+4)*i   :   2+(IDLength+4)*i+IDLength],data.ID[:])
 
 		// Calculate IP address
-		var address = net.ParseIP(data.Address)[12:]
+		var node_address = net.ParseIP(data.Address)
+		fmt.Println("IP Address of node in findNodeAck: " + data.Address)
+		for _,temp := range node_address {
+			fmt.Println(temp)
+		}
 
 		// Put the IP address
-		copy(reply[(2+IDLength+IDLength)+(IDLength+4)*i   :   (2+IDLength)+(IDLength+4)*i+4],address)
+		copy(reply[(2+IDLength+IDLength)+(IDLength+4)*i   :   (2+IDLength+IDLength)+(IDLength+4)*i+4],node_address[12:])
 		i++
 	}
 
@@ -214,9 +218,6 @@ func (network *Network) Ping(contact *Contact) bool {
 	//conn.Write(reply)
 	conn.Write(reply)
 
-
-
-	// TODO DOES NOT WORK??
 	tmp := make([]byte,255)
 	conn.SetReadDeadline(time.Now().Add(20*time.Second)) // TODO Change to something more appropriate
 	//conn.Read(tmp)
@@ -358,7 +359,7 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
 	fmt.Println("Storing data in " + strconv.FormatInt(int64(len(nodes)),10) + " nodes")
 	network.localNode.routingTable.me.CalcDistance(hash)
-	if len(nodes) == 0 {
+	if len(nodes) < k {
 		nodes = append(nodes, network.localNode.routingTable.me)
 	} else if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) {
 		// If the locals node distance is less than the last node in the bucket,
@@ -368,6 +369,7 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 	for _,contact := range nodes { // What type of syntax is this??
 		if network.localNode.routingTable.me.ID == contact.ID {
 			// No need to send a network request. Send the RPC directly to the local node thread.
+			fmt.Println("Storing data on local node")
 			network.localNode.Store(data, hash)
 		} else {
 			// This is easily done async because we don't have to care what happens after!
