@@ -50,9 +50,13 @@ func (candidates *ContactCandidates) AppendContact(contact Contact) {
 	candidates.contacts = append(candidates.contacts, contact)
 }
 
-// GetContacts returns the first count number of Contacts
+// GetContacts returns the first count number of Contacts. The complete list will be returned if there are fewer contacts.
 func (candidates *ContactCandidates) GetContacts(count int) []Contact {
-	return candidates.contacts[:count]
+	if len(candidates.contacts) < count {
+		return candidates.contacts
+	} else {
+		return candidates.contacts[:count]
+	}
 }
 
 // Sort the Contacts in ContactCandidates
@@ -81,11 +85,7 @@ func (candidates *ContactCandidates) Less(i, j int) bool {
 // candidates have been sorted and have calculated distances to the target node.
 // No consideration is taken for unsorted contacts or contacts with improper distance.
 func (candidates *ContactCandidates) Contains(contact *Contact) bool {
-	fmt.Println(candidates.Len())
 	for i := 0; i < candidates.Len(); i++ {
-		fmt.Println(candidates.contacts[i].distance)
-		fmt.Println(contact.distance)
-		fmt.Println("  ")
 		if !candidates.contacts[i].Less(contact) {
 			if candidates.contacts[i].distance.Equals(contact.distance) {
 				// The contact exists among the candidates

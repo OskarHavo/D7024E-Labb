@@ -52,7 +52,7 @@ func NewNetwork(ip *net.IP) Network {
 	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String()))}
 }
 // TODO - dokumentation.
-func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, msgType byte) {
+func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, address *net.UDPAddr, msgType byte) {
 	requesterID := (*KademliaID)((*msg)[1:1+IDLength])
 	targetID := (*KademliaID)((*msg)[1+IDLength:1+IDLength+IDLength])
 	bucket := network.localNode.routingTable.FindClosestContacts(targetID, k + 1)
@@ -83,11 +83,11 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, ms
 	// Final structure of message:
 	// FIND_NODE_ACK + number of contacts + (ID + IP) + (ID + IP) + ...
 
-	(*connection).Write(reply)
+	(*connection).WriteToUDP(reply,address)
 }
 
 // Server receive function for network messages
-func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, contact *Contact) {
+func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, address *net.UDPAddr) {
 	switch message_type := (*msg)[0]; message_type {
 	case PING:
 		fmt.Println("Received a ping message. Sending ack")
@@ -97,13 +97,11 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, cont
 		copy(reply[1:],network.localNode.routingTable.me.ID[:])
 
 		// TODO DOES NOT WORK??
-		(*connection).Write(reply)
-		address := net.UDPAddr{
-			Port: 5001,
-			IP: net.ParseIP(contact.Address),
+		//(*connection).Write(reply)
+		_,err := (*connection).WriteToUDP(reply,address)
+		if err != nil {
+			fmt.Println("There was a ping error: " + err.Error())
 		}
-		(*connection).WriteToUDP(reply,&address)
-
 		return
 	case PING_ACK:
 		//fmt.Println("Received PING ACK!!!!!!")
@@ -117,7 +115,7 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, cont
 		return
 	case FIND_NODE:
 		fmt.Println("Received a find node message. Sending ack")
-		network.sendFindNodeAck(msg,connection, FIND_NODE_ACK)
+		network.sendFindNodeAck(msg,connection,address, FIND_NODE_ACK)
 		return
 	case FIND_DATA:
 		fmt.Println("Received a find data message. Sending ack")
@@ -130,7 +128,7 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, cont
 			copy(reply[IDLength+1:],result)
 			(*connection).Write(reply)
 		} else {
-			network.sendFindNodeAck(msg,connection,FIND_DATA_ACK_FAIL)
+			network.sendFindNodeAck(msg,connection,address,FIND_DATA_ACK_FAIL)
 		}
 		return
 	}
@@ -138,33 +136,42 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, cont
 
 // Listen for incoming connections
 func (network *Network) Listen() {
+	//hostName := "localhost"
+	//portNum := "5001"
+	//service := hostName + ":" + portNum
+	//addr,err := net.ResolveUDPAddr("udp4",service)
 
-
-	// TODO DOES NOT WORK??
-	conn, err := net.ListenUDP("udp", &net.UDPAddr{
-		Port:5001,
-	})
-	if err != nil {
-		fmt.Println(err)
-	} else {
+	//if err != nil {
+	//	fmt.Println(err)
+	//} else {
 		for {
-			msg := make([]byte,256)
-			_,addr,_ := conn.ReadFromUDP(msg)
-			fmt.Println("Received message: ")
-			ID := (*KademliaID)(msg[1:1+IDLength])
-			fmt.Println("    ID: " + ID.String())
-			fmt.Println("    IP: " + addr.String())
+			fmt.Println("Listening to UDP")
+			conn, err := net.ListenUDP("udp", &net.UDPAddr{
+				Port:5001,
+			})
+			if err == nil {
+				msg := make([]byte,1028)
+				_,addr,_ := conn.ReadFromUDP(msg)
+				fmt.Println("Received message: ")
+				ID := (*KademliaID)(msg[1:1+IDLength])
+				fmt.Println("    ID: " + ID.String())
+				fmt.Println("    IP: " + addr.String())
 
 
-			fmt.Println("Attempting to create a contact")
-			contact := NewContact(ID,addr.String())
-			fmt.Println("Attempting to kick the bucket")
-			network.kickThebucket(&contact)
+				fmt.Println("Attempting to create a contact")
+				contact := NewContact(ID,addr.String())
+				fmt.Println("Attempting to kick the bucket")
+				network.kickThebucket(&contact)
 
-			network.unpackMessage(&msg,conn,&contact)
+				network.unpackMessage(&msg,conn,addr)
+			} else {
+				fmt.Println("Could not read from incoming connection")
+			}
+			conn.Close()
 		}
-		conn.Close()
-	}
+
+	//}
+
 }
 // TODO- Dokumentation
 func (network *Network) Join(id *KademliaID, address string) {
@@ -184,13 +191,19 @@ func (network *Network) Join(id *KademliaID, address string) {
 // Ping some node directly with the given contact.address. Returns if true if the node responded successfully,
 // and false if it did not
 func (network *Network) Ping(contact *Contact) bool {
+	hostName := contact.Address
+	portNum := "5001"
 
-	conn, err := net.Dial("udp", contact.Address + ":5001")
+	service := hostName + ":" + portNum
+
+	remoteAddr, err := net.ResolveUDPAddr("udp",service)
+
+	conn, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
 		return false
 	} else {
-		fmt.Println("Connection established to " + contact.ID.String() + "!")
+		fmt.Println("Connection established to " + remoteAddr.String() + "!")
 	}
 
 	reply := make([]byte, 1+IDLength)
@@ -207,7 +220,7 @@ func (network *Network) Ping(contact *Contact) bool {
 	tmp := make([]byte,255)
 	conn.SetReadDeadline(time.Now().Add(20*time.Second)) // TODO Change to something more appropriate
 	//conn.Read(tmp)
-	conn.Read(tmp)
+	conn.ReadFromUDP(tmp)
 	conn.Close()
 
 	duration := time.Since(start)
@@ -215,7 +228,7 @@ func (network *Network) Ping(contact *Contact) bool {
 	network.kickThebucket(contact)
 
 	if tmp[0] == PING_ACK {
-		fmt.Println("Pinging node " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
+		fmt.Println("Successful ping to " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
 			10) + " ms")
 		return true
 	} else {
@@ -236,10 +249,16 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 	var visited ContactCandidates
 	var unvisited ContactCandidates
 	initNodes := network.localNode.routingTable.FindClosestContacts(lookupID, k)
+
+	if len(initNodes) == 0 {
+		return []Contact{}
+	}
+
+	fmt.Println("Starting find Node with " + strconv.FormatInt(int64(len(initNodes)),10) + " nodes")
 	unvisited.Append(initNodes)
 
 	wideSearch := false
-	for visitedKClosest(unvisited, visited, k) { // Keep sending RPCs until k closest nodes has been visited
+	for !visitedKClosest(unvisited, visited, k) { // Keep sending RPCs until k closest nodes has been visited
 		var nodesToVisit []Contact
 		if wideSearch {
 			// Grab <=k nodes to visit
@@ -264,7 +283,7 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 		// "wide search
 		wideSearch = doWideSearch(newRoundNodes, nodesToVisit[0])
 	}
-
+	fmt.Println("finished node lookup and found " + strconv.FormatInt(int64(visited.Len()),10))
 	if visited.Len() < k {
 		return visited.GetContacts(visited.Len())
 	} else {
@@ -337,6 +356,7 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 // Store sends a store msg to the 20th closest nodes a bucket
 func (network *Network) Store(data []byte, hash *KademliaID) {
 	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
+	fmt.Println("Storing data in " + strconv.FormatInt(int64(len(nodes)),10) + " nodes")
 	network.localNode.routingTable.me.CalcDistance(hash)
 	if len(nodes) == 0 {
 		nodes = append(nodes, network.localNode.routingTable.me)
@@ -356,11 +376,14 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 	}
 }
 // TODO- Dokumentation
-func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
-	visited *ContactCandidates, unvisited *ContactCandidates) []Contact {
+func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID, visited *ContactCandidates, unvisited *ContactCandidates) []Contact {
 
-	conn, err := net.Dial("udp", contact.Address + ":5001")
+	hostName := contact.Address
+	portNum := "5001" // TODO STATIC CONST
+	service := hostName + ":" + portNum
+	remoteAddr, err := net.ResolveUDPAddr("udp",service)
 
+	conn, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findNodeRPC to " + contact.ID.String())
 
@@ -373,6 +396,8 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 		fmt.Println("Connection established to " + contact.ID.String() + "!")
 		fmt.Println("Sending findNodeRPC ...")
 
+		/// ---------------
+
 		// We are visiting the node, so we move it from unvisited to visited collection
 		unvisited.Remove(contact)
 		visited.AppendContact(*contact)
@@ -384,14 +409,18 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 		conn.Write(msg)
 
 		reply := make([]byte,1+IDLength+1+(IDLength+4)*k)
-		conn.Read(reply)
+
+		/// ---------------
+
+
+		conn.ReadFromUDP(reply)
 		conn.Close()
 
 		// TODO This updates the routing table with the node we just queried.
 		network.kickThebucket(contact)
 
 		totalContacts := int(reply[1+IDLength])
-		var kClosestReply bucket
+		kClosestReply := newBucket()
 		for i := 0; i < totalContacts;i++ {
 			id := reply[2+IDLength+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
 			IP := net.IP{}
@@ -400,13 +429,18 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 
 			kClosestReply.AddContact(contact)
 		}
+
 		return kClosestReply.GetContactsAndCalcDistances(targetID)
 	}
 }
 // TODO- Dokumentation
 func (network *Network) findDataRPC(contact *Contact, hash *KademliaID,
 	visited *ContactCandidates, unvisited *ContactCandidates) ([]byte, []Contact) {
-	conn, err := net.Dial("udp", contact.Address + ":5001")
+	hostName := contact.Address
+	portNum := "5001"
+	service := hostName + ":" + portNum
+	remoteAddr, err := net.ResolveUDPAddr("udp",service)
+	conn, err := net.DialUDP("udp", nil, remoteAddr)
 
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findDataRPC to " + contact.ID.String())
@@ -427,7 +461,7 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID,
 		conn.Write(payload)
 
 		reply := make([]byte,1+IDLength+1+(IDLength+4)*k)
-		conn.Read(reply)
+		conn.ReadFromUDP(reply)
 		conn.Close()
 
 		// TODO This updates the routing table with the node we just queried.
@@ -455,7 +489,11 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID,
 }
 // TODO- Dokumentation
 func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []byte) {
-	conn, err := net.Dial("udp", contact.Address + ":5001")
+	hostName := contact.Address
+	portNum := "5001"
+	service := hostName + ":" + portNum
+	remoteAddr, err := net.ResolveUDPAddr("udp",service)
+	conn, err := net.DialUDP("udp", nil, remoteAddr)
 
 	if err != nil {
 		fmt.Println("Could not establish connection when sending storeDataRPC to " + contact.ID.String())
@@ -507,7 +545,14 @@ func (network *Network) updateKClosest(visited *ContactCandidates, unvisited *Co
 }
 // TODO- Dokumentation
 func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k int) bool {
-	if visited.Len() < k { // Cant have visited k closest if we haven't even visited k nodes yet
+
+	if unvisited.Len() == 0 {
+		// Stop the loop
+		return true
+	}
+
+	if visited.Len() == 0 { // Cant have visited k closest if we haven't even visited k nodes yet
+		// Don't stop the loop
 		return false
 	}
 
@@ -515,8 +560,10 @@ func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k i
 	unvisited.Sort()
 
 	if visited.contacts[k-1].Less(&unvisited.contacts[0]) {
+		// Stop the loop
 		return true
 	}
+	// Don't stop the loop
 	return false
 }
 
@@ -540,6 +587,7 @@ func (network *Network) kickThebucket(contact *Contact) {
 			if network.Ping(&sacrifice) {
 				fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
 			} else {
+				fmt.Println("Updating node " + contact.ID.String() + " to routing table!")
 				bucket.list.Remove(bucket.list.Back())
 				bucket.AddContact(*contact)
 			}

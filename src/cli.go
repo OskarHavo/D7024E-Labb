@@ -26,6 +26,7 @@ func main() {
 	//ip := addrs[1].(*net.IPNet).IP
 	net := NewNetwork(&IP)
 	fmt.Println("Started node with ID " + net.localNode.routingTable.me.ID.String())
+	fmt.Println("Node has IP address " + IP.String())
 	go net.Listen()
 
 	//hashmap := make(map[string]string) //temp for test
@@ -33,7 +34,7 @@ func main() {
 		fmt.Printf("\n Enter a command: ")
 		rawInput, _ := bufio.NewReader(os.Stdin).ReadString('\n') // Takes rawinput from console.
 		output := parseInput(rawInput, &net)
-		fmt.Println(output)
+		fmt.Println("Returned output:\n" + output)
 
 		/*
 		if err != nil {
