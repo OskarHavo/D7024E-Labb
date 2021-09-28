@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -88,15 +89,26 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, ad
 		copy(reply[staticSize+dynamicSize : staticSize+dynamicSize+(IDLength+IPLength) ], data.ID[:])
 
 		// convert ip string to byte array
-		var nodeAddress = net.ParseIP(data.Address[0:10])
-		fmt.Println("IP Address of node in findNodeAck: " + data.Address[0:10])
+		var nodeAddress = net.ParseIP(strings.Split(data.Address,":")[0]).To4()
+		fmt.Println("IP Address of node in findNodeAck: " + nodeAddress.String())
 
 		//copy(reply[(2+IDLength+IDLength)+(IDLength+4)*i : (2+IDLength+IDLength)+(IDLength+4)*i+4],
 			//nodeAddress[12:])
 		// Put the IP address
-		fmt.Println("Im giving this IP back to the requester:", nodeAddress)
+		fmt.Println("Im giving this IP back to the requester:", nodeAddress.String())
 		copy(reply[staticSize+dynamicSize+IDLength : staticSize+dynamicSize+IDLength+IPLength],
 			nodeAddress)
+
+		fmt.Println("Computed the following IP address to send:\n")
+		for i := 0; i < 4; i++ {
+			fmt.Print(strconv.FormatInt(int64(reply[staticSize+dynamicSize+IDLength+i]),10))
+			fmt.Print(".")
+		}
+		fmt.Print("\n")
+		for i := 0; i < 4; i++ {
+			fmt.Print(strconv.FormatInt(int64(nodeAddress[i]),10))
+			fmt.Print(".")
+		}
 	}
 	(*connection).WriteToUDP(reply, address)
 }
@@ -385,6 +397,7 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 	remoteAddr, err := net.ResolveUDPAddr("udp",service)
 
 	conn, err := net.DialUDP("udp", nil, remoteAddr)
+	fmt.Println("Attempting to find node at " + hostName)
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findNodeRPC to " + contact.ID.String())
 
@@ -399,6 +412,9 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 
 		// We are visiting the node, so we move it from unvisited to visited collection
 		unvisited.Remove(contact)
+		if visited.Contains(contact) {
+			fmt.Println("Whoops! The contact has already been contacted! \n        ID: " + contact.ID.String())
+		}
 		visited.AppendContact(*contact)
 
 		// Prepare msg
@@ -428,10 +444,30 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 
 			//id := reply[2+IDLength+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
 			id := reply[staticSize+dynamicSize: staticSize+dynamicSize+IDLength]
-			IP := net.IP{}
+			//var IP net.IP = make([]byte, 16)
+/*
+			fmt.Println("Printing the IP: ")
+			for i := 0; i < 16; i++ {
+				fmt.Print(strconv.FormatInt(int64(IP[i]),10))
+				fmt.Print(".")
+			}
+*/
 			//copy(IP, reply[2+IDLength+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
-			copy(IP, reply[staticSize+dynamicSize+IDLength : staticSize+dynamicSize+IDLength+IPLength])
+			//copy(IP[12:], reply[staticSize+dynamicSize+IDLength : staticSize+dynamicSize+IDLength+IPLength])
+/*
+			fmt.Println("Printing the IP: ")
+			for i := 0; i < 16; i++ {
+				fmt.Print(strconv.FormatInt(int64(IP[i]),10))
+				fmt.Print(".")
+			}
+
+ */
+			IP := net.IPv4(reply[staticSize+dynamicSize+IDLength],
+				reply[staticSize+dynamicSize+IDLength+1],
+				reply[staticSize+dynamicSize+IDLength+2],
+				reply[staticSize+dynamicSize+IDLength+3])
 			contact := NewContact((*KademliaID)(id), IP.String())
+			fmt.Println("\nCreated contact with IP " + contact.Address)
 
 			kClosestReply.AddContact(contact)
 		}
@@ -557,12 +593,13 @@ func (network *Network) updateKClosest(visited *ContactCandidates, unvisited *Co
 	for i := 0; i < len(newNodes); i++ {
 		// Check for duplicates among the nodes from prev rounds (visited and unvisited)
 		// Check for duplicates among newNodes
-		if !allOld.Contains(&newNodes[i]) && !toBeAdded.Contains(&newNodes[i]) {
+		if !allOld.Contains(&newNodes[i]) && !toBeAdded.Contains(&newNodes[i]){
 			toBeAdded.AppendContact(newNodes[i])
 			toBeAdded.Sort()
 		}
 	}
 	unvisited.Append(toBeAdded.contacts)
+	fmt.Println("Updated K closest. Contains: ", unvisited.Len(), "Unvisited nodes and ", visited.Len(), " visited.")
 }
 // TODO- Dokumentation
 func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k int) bool {

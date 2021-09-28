@@ -85,6 +85,7 @@ func (candidates *ContactCandidates) Less(i, j int) bool {
 // candidates have been sorted and have calculated distances to the target node.
 // No consideration is taken for unsorted contacts or contacts with improper distance.
 func (candidates *ContactCandidates) Contains(contact *Contact) bool {
+	/*
 	for i := 0; i < candidates.Len(); i++ {
 		if !candidates.contacts[i].Less(contact) {
 			if candidates.contacts[i].distance.Equals(contact.distance) {
@@ -94,6 +95,11 @@ func (candidates *ContactCandidates) Contains(contact *Contact) bool {
 				// The contact is not among the candidates
 				return false
 			}
+		}
+	}*/
+	for i := 0; i < candidates.Len(); i++ {
+		if candidates.contacts[i].ID.Equals(contact.ID) {
+			return true
 		}
 	}
 	return false // If the candidates array is empty
