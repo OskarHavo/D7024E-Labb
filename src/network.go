@@ -298,7 +298,23 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 			newRoundNodes = append(newRoundNodes, newBucket...)
 		}
 		network.updateKClosest(&visited, &unvisited, newRoundNodes)
-		
+
+		fmt.Println("\n\nFinished an iteration.")
+		fmt.Println("Potential new nodes:")
+		for _,k := range newRoundNodes {
+			fmt.Println(k.ID.String())
+		}
+
+		fmt.Println("\nUnvisited nodes:")
+		for _,k := range unvisited.contacts {
+			fmt.Println(k.ID.String())
+		}
+		fmt.Println("\nVisited nodes:")
+		for _,k := range visited.contacts {
+			fmt.Println(k.ID.String())
+		}
+		fmt.Println("\n\n")
+
 		// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
 		// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
 		// "wide search
@@ -397,7 +413,6 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 	remoteAddr, err := net.ResolveUDPAddr("udp",service)
 
 	conn, err := net.DialUDP("udp", nil, remoteAddr)
-	fmt.Println("Attempting to find node at " + hostName)
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findNodeRPC to " + contact.ID.String())
 
@@ -407,14 +422,11 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 
 		return nil
 	} else {
-		fmt.Println("Connection established to " + contact.ID.String() + "!")
-		fmt.Println("Sending findNodeRPC ...")
+		//fmt.Println("Connection established to " + contact.ID.String() + "!")
+		//fmt.Println("Sending findNodeRPC ...")
 
 		// We are visiting the node, so we move it from unvisited to visited collection
 		unvisited.Remove(contact)
-		if visited.Contains(contact) {
-			fmt.Println("Whoops! The contact has already been contacted! \n        ID: " + contact.ID.String())
-		}
 		visited.AppendContact(*contact)
 
 		// Prepare msg
@@ -442,32 +454,13 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 			// dynamic size is the size from prev loops (size of i-1 serialized contacts in bucket)
 			dynamicSize := (IDLength + IPLength) * i
 
-			//id := reply[2+IDLength+(IDLength+4)*i:2+(IDLength+4)*i+IDLength]
 			id := reply[staticSize+dynamicSize: staticSize+dynamicSize+IDLength]
-			//var IP net.IP = make([]byte, 16)
-/*
-			fmt.Println("Printing the IP: ")
-			for i := 0; i < 16; i++ {
-				fmt.Print(strconv.FormatInt(int64(IP[i]),10))
-				fmt.Print(".")
-			}
-*/
-			//copy(IP, reply[2+IDLength+(IDLength+4)*i+IDLength:2+(IDLength+4)*i+IDLength+4])
-			//copy(IP[12:], reply[staticSize+dynamicSize+IDLength : staticSize+dynamicSize+IDLength+IPLength])
-/*
-			fmt.Println("Printing the IP: ")
-			for i := 0; i < 16; i++ {
-				fmt.Print(strconv.FormatInt(int64(IP[i]),10))
-				fmt.Print(".")
-			}
 
- */
 			IP := net.IPv4(reply[staticSize+dynamicSize+IDLength],
 				reply[staticSize+dynamicSize+IDLength+1],
 				reply[staticSize+dynamicSize+IDLength+2],
 				reply[staticSize+dynamicSize+IDLength+3])
 			contact := NewContact((*KademliaID)(id), IP.String())
-			fmt.Println("\nCreated contact with IP " + contact.Address)
 
 			kClosestReply.AddContact(contact)
 		}
@@ -599,7 +592,6 @@ func (network *Network) updateKClosest(visited *ContactCandidates, unvisited *Co
 		}
 	}
 	unvisited.Append(toBeAdded.contacts)
-	fmt.Println("Updated K closest. Contains: ", unvisited.Len(), "Unvisited nodes and ", visited.Len(), " visited.")
 }
 // TODO- Dokumentation
 func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k int) bool {

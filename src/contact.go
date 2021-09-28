@@ -110,9 +110,11 @@ func (candidates *ContactCandidates) Remove(contact *Contact) {
 	if !candidates.Contains(contact) {
 		return
 	}
-	for i, c := range candidates.contacts {
-		if c.ID == contact.ID {
+	fmt.Println("Len of contact candidates before remove: ", candidates.Len())
+	for i := 0; i < len(candidates.contacts); i++{
+		if candidates.contacts[i].ID.Equals(contact.ID) {
 			candidates.contacts = append(candidates.contacts[:i], candidates.contacts[i+1:]...)
+			fmt.Println("Len of contact candidates after remove: ", candidates.Len())
 			return
 		}
 	}
