@@ -311,9 +311,6 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 			}
 		}
 
-		fmt.Println("Length of unvisited nodes: ", unvisited.Len())
-		fmt.Println("Length of visited nodes: ", visited.Len())
-		fmt.Println("Dynamic alpha: ", dynamic_alpha)
 		visited.Append(unvisited.contacts[:dynamic_alpha])
 		visited.Sort()
 
