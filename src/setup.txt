@@ -1,11 +1,9 @@
 1. Navigate to the sprint0 dir
 2. docker build -t kadlab .
 3. docker-compose --project-name 'kadlab' up --detach
-4. docker network inspect kadlab_network
-	Now you have a list of all nodes and their ip. All nodes listen to the port 5001
 5. docker container ls
 	Now you have a list of all the active nodes. Attach to one of them
-6. docker attach [NODE_NAME] --detach-keys="ctrl-a"
-	Now you are "inside" one of the nodes. Ping some address in the network list 
-	from step 4. All nodes listen to port 5001. 
-	Example input: 10.0.2.24:5001
+6. docker attach kadlab_kademliaNodes_1 --detach-keys="ctrl-a"
+	Now you are "inside" one of the nodes. (Number depends on which node you want to attach to.)
+7. join 172.20.0.3 
+	(The ip of the node you want to join, this is found in Docker Desktop)
