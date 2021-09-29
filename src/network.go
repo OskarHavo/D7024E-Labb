@@ -279,46 +279,48 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 	unvisited.Append(initNodes)
 
 	wideSearch := false
+	var dynamic_alpha = alpha
 	for !visitedKClosest(unvisited, visited, k) { // Keep sending RPCs until k closest nodes has been visited
-		var nodesToVisit []Contact
+		//var nodesToVisit []Contact
 		if wideSearch {
 			// Grab <=k nodes to visit
-			nodesToVisit = unvisited.GetContacts(k)
 			wideSearch = false
+			dynamic_alpha = k
 		} else {
 			// Grab <=alpha nodes to visit
-			nodesToVisit = unvisited.GetContacts(alpha)
+			dynamic_alpha = alpha
+		}
+		if dynamic_alpha > unvisited.Len() {
+			dynamic_alpha = unvisited.Len()
 		}
 
 		var newRoundNodes []Contact
 		// Actually visit <=alpha of k-closest nodes grabbed in the prev step
-		for i := 0; i < len(nodesToVisit); i++ {
-			// TODO: Do this asynchronously?
-			newBucket := network.findNodeRPC(&nodesToVisit[i], lookupID, &visited, &unvisited) // Send RPC
-			newRoundNodes = append(newRoundNodes, newBucket...)
-		}
-		network.updateKClosest(&visited, &unvisited, newRoundNodes)
+		fmt.Println("\n\nStarting a new iteration.")
 
-		fmt.Println("\n\nFinished an iteration.")
-		fmt.Println("Potential new nodes:")
-		for _,k := range newRoundNodes {
-			fmt.Println(k.ID.String())
-		}
 
-		fmt.Println("\nUnvisited nodes:")
-		for _,k := range unvisited.contacts {
-			fmt.Println(k.ID.String())
+		for k := 0; k < dynamic_alpha; {
+			newBucket := network.findNodeRPC(&unvisited.contacts[k], lookupID) // Send RPC
+			if newBucket != nil {
+				newRoundNodes = append(newRoundNodes, newBucket...)
+			} else {
+				unvisited.contacts = append(unvisited.contacts[:k], unvisited.contacts[k+1:]...)
+				k ++
+			}
 		}
-		fmt.Println("\nVisited nodes:")
-		for _,k := range visited.contacts {
-			fmt.Println(k.ID.String())
-		}
-		fmt.Println("\n\n")
 
 		// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
 		// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
 		// "wide search
-		wideSearch = doWideSearch(newRoundNodes, nodesToVisit[0])
+		wideSearch = doWideSearch(newRoundNodes, unvisited.contacts[0])
+
+		// Move unvisited nodes to the visited.
+		visited.Append(unvisited.contacts[:dynamic_alpha])
+		visited.Sort()
+		unvisited.contacts = unvisited.contacts[dynamic_alpha:]
+
+		// Prepare more unvisited nodes.
+		network.updateKClosest(&visited, &unvisited, newRoundNodes)
 	}
 	fmt.Println("finished node lookup with " + strconv.FormatInt(int64(visited.Len()),10) + " nodes")
 	if visited.Len() < k {
@@ -330,6 +332,7 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 
 // DataLookup works exactly like NodeLookup, except that we return data instead of a bucket if we find it from
 // any of the findDataRPCs (which replaces findNodeRPC from NodeLookup)
+// TODO- Gör så den här fungerar på samma sätt som NodeLookup. Jag har tagit bort nodesToVisit. Den skapade mer problem än nytta.
 func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 
 	local_data := network.localNode.LookupData(hash)
@@ -405,8 +408,7 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 	}
 }
 // TODO- Dokumentation
-func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
-	visited *ContactCandidates, unvisited *ContactCandidates) []Contact {
+func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) []Contact {
 	hostName := contact.Address
 	portNum := "5001" // TODO STATIC CONST
 	service := hostName + ":" + portNum
@@ -415,19 +417,8 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID,
 	conn, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findNodeRPC to " + contact.ID.String())
-
-		// "Nodes that fail to respond (quickly) are removed from
-		//  consideration until and unless they do respond"
-		unvisited.Remove(contact)
-
 		return nil
 	} else {
-		//fmt.Println("Connection established to " + contact.ID.String() + "!")
-		//fmt.Println("Sending findNodeRPC ...")
-
-		// We are visiting the node, so we move it from unvisited to visited collection
-		unvisited.Remove(contact)
-		visited.AppendContact(*contact)
 
 		// Prepare msg
 		// [TYPE MSG, REQUESTER ID, BUCKET SIZE, BUCKET:[ID, IP]]
@@ -582,6 +573,7 @@ func (network *Network) updateKClosest(visited *ContactCandidates, unvisited *Co
 	newNodes []Contact) {
 	allOld := *visited // All nodes from the previous rounds that we have seen, visited and unvisited
 	allOld.Append(unvisited.contacts)
+	fmt.Println("Updating K closest. Old nodes: ", allOld.Len())
 	var toBeAdded ContactCandidates
 	for i := 0; i < len(newNodes); i++ {
 		// Check for duplicates among the nodes from prev rounds (visited and unvisited)
@@ -592,6 +584,7 @@ func (network *Network) updateKClosest(visited *ContactCandidates, unvisited *Co
 		}
 	}
 	unvisited.Append(toBeAdded.contacts)
+	unvisited.Sort()
 }
 // TODO- Dokumentation
 func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k int) bool {
