@@ -281,7 +281,7 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 	wideSearch := false
 	var dynamic_alpha = alpha
 	for !visitedKClosest(unvisited, visited, k) { // Keep sending RPCs until k closest nodes has been visited
-		//var nodesToVisit []Contact
+
 		if wideSearch {
 			// Grab <=k nodes to visit
 			wideSearch = false
@@ -299,24 +299,31 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 		fmt.Println("\n\nStarting a new iteration.")
 
 
-		for k := 0; k < dynamic_alpha; {
-			newBucket := network.findNodeRPC(&unvisited.contacts[k], lookupID) // Send RPC
-			if newBucket != nil {
+		for current_node := 0; current_node < dynamic_alpha && current_node < unvisited.Len(); {
+			fmt.Println("Visiting node " , unvisited.contacts[current_node].ID.String())
+			newBucket, success := network.findNodeRPC(&unvisited.contacts[current_node], lookupID) // Send RPC
+			if success {
 				newRoundNodes = append(newRoundNodes, newBucket...)
+				current_node ++
 			} else {
-				unvisited.contacts = append(unvisited.contacts[:k], unvisited.contacts[k+1:]...)
-				k ++
+				unvisited.contacts = append(unvisited.contacts[:current_node], unvisited.contacts[current_node+1:]...)
+				dynamic_alpha --
 			}
 		}
 
+		fmt.Println("Length of unvisited nodes: ", unvisited.Len())
+		fmt.Println("Length of visited nodes: ", visited.Len())
+		fmt.Println("Dynamic alpha: ", dynamic_alpha)
+		visited.Append(unvisited.contacts[:dynamic_alpha])
+		visited.Sort()
+
+		// Move unvisited nodes to the visited.
 		// "If a round of FIND_NODEs fails to return a node any closer than the closest already seen, the initiator
 		// resends the FIND_NODE to all of the closest k nodes it has not already queried" <-- we call this a
 		// "wide search
-		wideSearch = doWideSearch(newRoundNodes, unvisited.contacts[0])
+		wideSearch = doWideSearch(newRoundNodes, visited.contacts[0])
 
-		// Move unvisited nodes to the visited.
-		visited.Append(unvisited.contacts[:dynamic_alpha])
-		visited.Sort()
+
 		unvisited.contacts = unvisited.contacts[dynamic_alpha:]
 
 		// Prepare more unvisited nodes.
@@ -408,7 +415,7 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 	}
 }
 // TODO- Dokumentation
-func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) []Contact {
+func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) ([]Contact, bool) {
 	hostName := contact.Address
 	portNum := "5001" // TODO STATIC CONST
 	service := hostName + ":" + portNum
@@ -417,7 +424,7 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) []Co
 	conn, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findNodeRPC to " + contact.ID.String())
-		return nil
+		return nil,false
 	} else {
 
 		// Prepare msg
@@ -458,7 +465,7 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) []Co
 
 		// TODO This updates the routing table with the node we just queried.
 		network.kickTheBucket(contact)
-		return kClosestReply.GetContactsAndCalcDistances(targetID)
+		return kClosestReply.GetContactsAndCalcDistances(targetID),true
 	}
 }
 // TODO- Dokumentation
