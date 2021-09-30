@@ -8,10 +8,10 @@ import (
 )
 
 // the static number of bytes in a KademliaID
-const IDLength = 20
+const ID_LEN = 20
 
 // type definition of a KademliaID
-type KademliaID [IDLength]byte
+type KademliaID [ID_LEN]byte
 
 func sha1Hash(content string) []byte {
 	// https://gobyexample.com/sha1-hashes
@@ -27,7 +27,7 @@ func NewKademliaID(data string) *KademliaID {
 	decoded, _ := hex.DecodeString(data)
 
 	newKademliaID := KademliaID{}
-	for i := 0; i < IDLength; i++ {
+	for i := 0; i < ID_LEN; i++ {
 		newKademliaID[i] = decoded[i]
 	}
 
@@ -39,7 +39,7 @@ func NewKademliaIDFromData(data string) *KademliaID {
 	decoded := sha1Hash(data)
 
 	newKademliaID := KademliaID{}
-	for i := 0; i < IDLength; i++ {
+	for i := 0; i < ID_LEN; i++ {
 		newKademliaID[i] = decoded[i]
 	}
 
@@ -51,7 +51,7 @@ func NewKademliaIDFromIP(ip *net.IP) *KademliaID {
 	//decoded, _ := hex.DecodeString(ip.String())
 	decoded := sha1Hash(ip.String())
 	newKademliaID := KademliaID{}
-	for i := 0; i < IDLength; i++ {
+	for i := 0; i < ID_LEN; i++ {
 		newKademliaID[i] = decoded[i]
 	}
 
@@ -62,7 +62,7 @@ func NewKademliaIDFromIP(ip *net.IP) *KademliaID {
 // change this to a better version if you like
 func NewRandomKademliaID() *KademliaID {
 	newKademliaID := KademliaID{}
-	for i := 0; i < IDLength; i++ {
+	for i := 0; i < ID_LEN; i++ {
 		newKademliaID[i] = uint8(rand.Intn(256))
 	}
 	return &newKademliaID
@@ -70,7 +70,7 @@ func NewRandomKademliaID() *KademliaID {
 
 // Less returns true if kademliaID < otherKademliaID (bitwise)
 func (kademliaID KademliaID) Less(otherKademliaID *KademliaID) bool {
-	for i := 0; i < IDLength; i++ {
+	for i := 0; i < ID_LEN; i++ {
 		if kademliaID[i] != otherKademliaID[i] {
 			return kademliaID[i] < otherKademliaID[i]
 		}
@@ -80,7 +80,7 @@ func (kademliaID KademliaID) Less(otherKademliaID *KademliaID) bool {
 
 // Equals returns true if kademliaID == otherKademliaID (bitwise)
 func (kademliaID KademliaID) Equals(otherKademliaID *KademliaID) bool {
-	for i := 0; i < IDLength; i++ {
+	for i := 0; i < ID_LEN; i++ {
 		if kademliaID[i] != otherKademliaID[i] {
 			return false
 		}
@@ -92,7 +92,7 @@ func (kademliaID KademliaID) Equals(otherKademliaID *KademliaID) bool {
 // through a bitwise XOR operation betweeen kademliaID and target
 func (kademliaID KademliaID) CalcDistance(target *KademliaID) *KademliaID {
 	result := KademliaID{}
-	for i := 0; i < IDLength; i++ {
+	for i := 0; i < ID_LEN; i++ {
 		result[i] = kademliaID[i] ^ target[i]
 	}
 	return &result
@@ -100,5 +100,5 @@ func (kademliaID KademliaID) CalcDistance(target *KademliaID) *KademliaID {
 
 // String returns a simple string representation of a KademliaID
 func (kademliaID *KademliaID) String() string {
-	return hex.EncodeToString(kademliaID[0:IDLength])
+	return hex.EncodeToString(kademliaID[0:ID_LEN])
 }
