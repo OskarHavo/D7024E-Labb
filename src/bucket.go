@@ -4,8 +4,7 @@ import (
 	"container/list"
 )
 
-// bucket definition
-// contains a List
+// bucket definition. Contains a List
 type bucket struct {
 	list *list.List
 }
@@ -28,7 +27,6 @@ func (bucket *bucket) AddContact(contact Contact) {
 			element = e
 		}
 	}
-
 	if element == nil {
 		if bucket.list.Len() < k {
 			//fmt.Println("Adding new node " + contact.ID.String() + " to front of bucket!")
@@ -40,6 +38,7 @@ func (bucket *bucket) AddContact(contact Contact) {
 	}
 }
 
+// Check what elements exists within a select contact.
 func (bucket *bucket) Contains(contact *Contact)  *list.Element {
 	var element *list.Element
 	for e := bucket.list.Front(); e != nil; e = e.Next() {
@@ -53,8 +52,7 @@ func (bucket *bucket) Contains(contact *Contact)  *list.Element {
 	return element
 }
 
-// returns an array of Contacts where
-// the distance has already been calculated
+// Returns an array of Contacts where the distance has already been calculated
 func (bucket *bucket) GetContactsAndCalcDistances(target *KademliaID) []Contact {
 	var contacts []Contact
 

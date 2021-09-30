@@ -6,18 +6,19 @@ package main
 type Node struct {
 	storage map[KademliaID][]byte
 	routingTable *RoutingTable
-	//comChannel chan []byte
-	//contactChannel chan[]Contact
 }
 
+// Create a new Node
 func NewNode(ID Contact) Node {
-	return Node{make(map[KademliaID][]byte), NewRoutingTable(ID)}//, make(chan []byte), make(chan[]Contact)}
+	return Node{make(map[KademliaID][]byte), NewRoutingTable(ID)}
 }
 
+// William skulle fixa
 func (kademlia *Node) LookupContact(target *Contact) {
 	// TODO - Vad ska den här göra? Behövs den?
 }
 
+// Lookup data
 func (kademlia *Node) LookupData(hash *KademliaID) []byte {
 	if kademlia.storage[*hash] == nil {
 		return nil
@@ -25,6 +26,7 @@ func (kademlia *Node) LookupData(hash *KademliaID) []byte {
 	return kademlia.storage[*hash]
 }
 
+// Store data
 func (kademlia *Node) Store(data []byte, hash *KademliaID) {
 	if  kademlia.storage[*hash] != nil{
 		// TODO Throw some error or something
