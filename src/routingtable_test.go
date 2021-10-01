@@ -1,22 +1,39 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 )
 
 func TestRoutingTable(t *testing.T) {
-	rt := NewRoutingTable(NewContact(NewKademliaID("FFFFFFFF00000000000000000000000000000000"), "localhost:8000"))
+	result := []Contact{
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000"), ""),
+		NewContact(NewKademliaID("000000000000000000000000000000000000000F"), ""),
+		NewContact(NewKademliaID("00000000000000000000000000000000000000FF"), ""),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000FFF"), ""),
+		NewContact(NewKademliaID("000000000000000000000000000000000000FFFF"), ""),
+		NewContact(NewKademliaID("00000000000000000000000000000000000FFFFF"), ""),
+		NewContact(NewKademliaID("0000000000000000000000000000000000FFFFFF"), "")}
 
-	rt.AddContact(NewContact(NewKademliaID("FFFFFFFF00000000000000000000000000000000"), "localhost:8001"))
-	rt.AddContact(NewContact(NewKademliaID("1111111100000000000000000000000000000000"), "localhost:8002"))
-	rt.AddContact(NewContact(NewKademliaID("1111111200000000000000000000000000000000"), "localhost:8002"))
-	rt.AddContact(NewContact(NewKademliaID("1111111300000000000000000000000000000000"), "localhost:8002"))
-	rt.AddContact(NewContact(NewKademliaID("1111111400000000000000000000000000000000"), "localhost:8002"))
-	rt.AddContact(NewContact(NewKademliaID("2111111400000000000000000000000000000000"), "localhost:8002"))
+	rt := NewRoutingTable(NewContact(NewKademliaID("0000000000000000000000000000000000FFFFFF"),""))
 
-	contacts := rt.FindClosestContacts(NewKademliaID("2111111400000000000000000000000000000000"), 20)
-	for i := range contacts {
-		fmt.Println(contacts[i].String())
-	}
+	rt.AddContact(result[5])
+	rt.AddContact(result[4])
+	rt.AddContact(result[2])
+	rt.AddContact(result[3])
+	rt.AddContact(result[1])
+	rt.AddContact(result[6])
+	rt.AddContact(result[0])
+
+
+
+
+	t.Run("Closest", func(t *testing.T) {
+		contacts := rt.FindClosestContacts(NewKademliaID("0000000000000000000000000000000000000000"), 20)
+
+		for i := range contacts {
+			if !result[i].ID.Equals(contacts[i].ID) {
+				t.Errorf("Routing table test() = %v, want %v", contacts[i].ID.String(), result[i].ID.String())
+			}
+		}
+	})
 }
