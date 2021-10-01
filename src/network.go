@@ -49,6 +49,7 @@ const MAX_PACKET_SIZE = 1024
 const IP_LEN = 4
 const HEADER_LEN = 1
 const BUCKET_HEADER_LEN = 1
+const TIMEOUT = 500
 
 const KAD_PORT = "5001"
 
@@ -168,14 +169,23 @@ func (network *Network) Listen() {
 			})
 			if err == nil {
 				msg := make([]byte, MAX_PACKET_SIZE)
-				_,addr,_ := conn.ReadFromUDP(msg)
+				conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+				_,addr,err := conn.ReadFromUDP(msg)
 
-				// Create requester contact
-				ID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
-				IP := addr.IP.To4().String()
-				contact := NewContact(ID, IP)
-				network.kickTheBucket(&contact)
-				network.unpackMessage(&msg,conn,addr)
+				if err != nil {
+					fmt.Println("Could not read incoming message")
+				} else {
+					ID := (*KademliaID)(msg[1:1+ID_LEN])
+
+
+					//fmt.Println("Attempting to create a contact")
+					contact := NewContact(ID,addr.IP.To4().String())
+					//fmt.Println("Attempting to kick the bucket")
+					network.kickTheBucket(&contact)
+
+					network.unpackMessage(&msg,conn,addr)
+				}
+
 			} else {
 				fmt.Println("Could not read from incoming connection.", err.Error())
 			}
@@ -221,8 +231,17 @@ func (network *Network) Ping(contact *Contact) bool {
 	conn.SetReadDeadline(time.Now().Add(20*time.Second))
 	conn.ReadFromUDP(msg)
 
-	// We are done. Close connection.
+	tmp := make([]byte,255)
+	//conn.Read(tmp)
+	conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+	_,_,err2 := conn.ReadFromUDP(tmp)
 	conn.Close()
+
+	if err2 != nil {
+		fmt.Println("Could not read Ping message from", contact.ID.String())
+		return false
+	}
+
 	duration := time.Since(start)
 
 	// Update routing table with the contact that we pinged
@@ -380,8 +399,15 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) ([]C
 
 		// Read and handle reply
 		reply := make([]byte, HEADER_LEN+BUCKET_HEADER_LEN+(ID_LEN+IP_LEN)*k)
-		conn.ReadFromUDP(reply)
+		conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+		_,_,err := conn.ReadFromUDP(reply)
+
 		conn.Close()
+
+		if err != nil {
+			fmt.Println("Could not read FIND_NODE_RPC from " + contact.ID.String())
+			return nil,false
+		}
 
 		// TODO: This can be put into a function and reused in findDataRPC
 		kClosestReply := handleBucketReply(&reply)
@@ -414,10 +440,17 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 		conn.Write(msg)
 
 		reply := make([]byte, MAX_PACKET_SIZE)
-		conn.ReadFromUDP(reply)
-		
+		conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+		_,_,err := conn.ReadFromUDP(reply)
+
 		conn.Close()
 
+		if err != nil {
+			fmt.Println("Could not read FIND_DATA_RPC from " + contact.ID.String())
+			return nil, nil, false
+		}
+
+		// TODO This updates the routing table with the node we just queried.
 		network.kickTheBucket(contact)
 
 		if reply[0] == FIND_DATA_ACK_FAIL {
