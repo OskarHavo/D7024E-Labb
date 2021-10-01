@@ -46,7 +46,7 @@ func parseInput(input string, net *Network) string {
 		fmt.Println("Blank input. Try again.")
 	}
 	// Single Input
-	if len(stringinput) == 1 {
+	if len(stringinput) > 0 {
 		command = stringinput[0]
 		command = strings.ToLower(strings.Trim(command, " \r\n")) //Removes hidden \n etc, which makes string comparision impossible.
 	}
