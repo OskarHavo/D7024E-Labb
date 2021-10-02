@@ -129,7 +129,7 @@ func TestHandleDualInput(t *testing.T) {
 	inputString := "test"
 	put(inputString, &net)
 	output_3 := handleDualInput("get", "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3", &net)
-	groundTruth_3 := "NodeID: 6fa285f56b4c7c0b2866def6372d220205b2828a  Content: test"
+	groundTruth_3 := "NodeID: 4e2c52cb52993364aeb5e941e07e2342646ba188  Content: test"
 	if output_3 != groundTruth_3 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_3, groundTruth_3)
 	} else {
@@ -159,6 +159,7 @@ func TestPut(t *testing.T) {
 	} else {
 		fmt.Println("PUT - Good Input = Passed") // -v must be added to go test for prints to appear.
 	}
+	/* No longer checks for this @Robyn
 	// Test Already Used Input
 	output_2 := put("testing", &net)
 	groundTruth_2 := "Uploaded File Already Exists"
@@ -167,6 +168,8 @@ func TestPut(t *testing.T) {
 	} else {
 		fmt.Println("PUT - Already Used Input = Passed") // -v must be added to go test for prints to appear.
 	}
+	*/
+
 }
 
 func TestGet(t *testing.T) {
@@ -193,14 +196,14 @@ func TestGet(t *testing.T) {
 		fmt.Println("GET - Find Valid Input = Passed")
 	}
 
-	// Test Find Invalid Input
-	inputHash := "loremipsum"
+	// Test Find Null Input
+	inputHash := "0000000000000000000000000000000000000000"
 	_, output_2_2 := get(inputHash, &net)
-	groundTruth_2 := "Hashvalue Does Not Exist In The Hashmap"
+	groundTruth_2 := "Could not find node or data in the network"
 	if output_2_2 != groundTruth_2 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_2_2, groundTruth_2)
 	} else {
-		fmt.Println("GET - Find Invalid Input = Passed")
+		fmt.Println("GET - Find Null Input = Passed")
 	}
 }
 
