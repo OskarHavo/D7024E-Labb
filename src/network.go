@@ -275,7 +275,7 @@ func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 
 	wideSearch := false
 	var searchRange = alpha
-	for !visitedKClosest(unvisited, visited, k) { // Keep sending RPCs until k closest nodes has been visited
+	for !visitedKClosest(&unvisited, &visited, k) { // Keep sending RPCs until k closest nodes has been visited
 		searchRange = setSearchSize(wideSearch, &unvisited)
 
 		var newRoundNodes []Contact
@@ -321,7 +321,7 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 
 	wideSearch := false
 	var searchRange = alpha
-	for !visitedKClosest(unvisited, visited, k) {
+	for !visitedKClosest(&unvisited, &visited, k) {
 		searchRange = setSearchSize(wideSearch, &unvisited)
 
 		var newRoundNodes []Contact
@@ -527,8 +527,8 @@ func (network *Network) kickTheBucket(contact *Contact) {
 }
 
 // We don't want to send back the requester its own ID so that it has itself in its own bucket.
-// removeSelfOrTail therefore grabs a bucket of size k+1 and either remove the requesterID if it exists,
-// or the tail (the furthest one away of the 21 nodes) if it doesn't.
+// removeSelfOrTail therefore grabs a bucket (of size k+1) and either remove the requesterID if it exists,
+// or the tail (the furthest one away of the nodes) if it doesn't.
 // Removing tail is optional (you don't want to do this if bucket is already less than k)
 func removeSelfOrTail(requesterID *KademliaID, bucket []Contact, removeTail bool) []Contact {
 	for index, contact := range bucket {
@@ -554,24 +554,24 @@ func addNewNodes(visited *ContactCandidates, unvisited *ContactCandidates,
 	for i := 0; i < len(newNodes); i++ {
 		// Check for duplicates among the nodes from prev rounds (visited and unvisited)
 		// Check for duplicates among newNodes
-		if !allOld.Contains(&newNodes[i]) && !toBeAdded.Contains(&newNodes[i]){
+		if !allOld.Contains(&newNodes[i]) && !toBeAdded.Contains(&newNodes[i]) {
 			toBeAdded.AppendContact(newNodes[i])
-			toBeAdded.Sort()
+			//toBeAdded.Sort()
 		}
 	}
 	unvisited.Append(toBeAdded.contacts)
-	unvisited.Sort()
+	//unvisited.Sort()
 }
 
 // visitedKClosest checks if the NodeLookup (and DataLookup) algorithm is finished by
 // comparing the known k closest nodes to the visited nodes
 // returns either true (finished) or false (not finished). See implementation comments for more detail
-func visitedKClosest(unvisited ContactCandidates, visited ContactCandidates, k int) bool {
+func visitedKClosest(unvisited *ContactCandidates, visited *ContactCandidates, k int) bool {
 	visited.Sort()
 	unvisited.Sort()
 
 	// There are no new contacts to visit! We must be done, regardless of how many nodes
-	// we have already visited
+	// we have already visited (name of function should change?)
 	if unvisited.Len() == 0 {
 		return true
 	}
