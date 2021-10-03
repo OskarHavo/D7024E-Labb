@@ -308,6 +308,59 @@ func TestSetSearchSize(t *testing.T) {
 }
 
 func TestPostIterationProcessing(t *testing.T) {
-	//var v, u ContactCandidates
-	//var newRoundNodes []Contact
+	// We only have to test that postIterationProcessing moves contacts from unvisited to visited correctly.
+	// Testing addNewNodes and doWideSearch is done separately (see this file)
+	// We assume that postIterationProcessing will return the same value as doWideSearch
+	// because it is IMPOSSIBLE TO MESS UP (1 LINE ASSIGNMENT)
+
+	// We are checking that movement works for a
+	// searchRange = min, searchRange = max and min < searchRange < max
+	var v, u ContactCandidates
+	var n []Contact
+	c1 := NewContact(NewKademliaID("0000000000000000000000000000000000000001"), "0")
+	c2 := NewContact(NewKademliaID("0000000000000000000000000000000000000002"), "0")
+	c3 := NewContact(NewKademliaID("0000000000000000000000000000000000000003"), "0")
+	c4 := NewContact(NewKademliaID("0000000000000000000000000000000000000004"), "0")
+	c1.distance = NewKademliaID("0000000000000000000000000000000000000000")
+	c2.distance = NewKademliaID("0000000000000000000000000000000000000000")
+	c3.distance = NewKademliaID("0000000000000000000000000000000000000000")
+	c4.distance = NewKademliaID("0000000000000000000000000000000000000000")
+	u.AppendContact(c1)
+	u.AppendContact(c2)
+	u.AppendContact(c3)
+
+	s := 2
+	// ID 1 and 2 should be moved
+	postIterationProcessing(&v, &u, &n, s)
+	if !v.Contains(&c1) || !v.Contains(&c2) || v.Contains(&c3) || u.Contains(&c1) || u.Contains(&c2) || !u.Contains(&c3){
+		t.Errorf("postIterationProcessing did not move contacts properly from " +
+			"unvisited to visited when searchRange = %d", s)
+	}
+
+	v = ContactCandidates{}
+	u = ContactCandidates{}
+	v.AppendContact(c4) // has to have at least 1 contact
+	u.AppendContact(c1)
+	u.AppendContact(c2)
+	u.AppendContact(c3)
+	s = 0
+	// none should be moved
+	postIterationProcessing(&v, &u, &n, s)
+	if v.Len() > 1 {
+		t.Errorf("postIterationProcessing did not move contacts properly from " +
+			"unvisited to visited when searchRange = %d", s)
+	}
+
+	v = ContactCandidates{}
+	u = ContactCandidates{}
+	u.AppendContact(c1)
+	u.AppendContact(c2)
+	u.AppendContact(c3)
+	s = 3
+	// all should be moved
+	postIterationProcessing(&v, &u, &n, s)
+	if !v.Contains(&c1) || !v.Contains(&c2) || !v.Contains(&c3) || u.Contains(&c1) || u.Contains(&c2) || u.Contains(&c3){
+		t.Errorf("postIterationProcessing did not move contacts properly from " +
+			"unvisited to visited when searchRange = %d", s)
+	}
 }
