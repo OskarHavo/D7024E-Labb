@@ -1,0 +1,1318 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>d7024e: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">d7024e/bucket.go (92.0%)</option>
+				
+				<option value="file1">d7024e/cli.go (54.8%)</option>
+				
+				<option value="file2">d7024e/contact.go (92.0%)</option>
+				
+				<option value="file3">d7024e/kademlia.go (100.0%)</option>
+				
+				<option value="file4">d7024e/kademliaid.go (100.0%)</option>
+				
+				<option value="file5">d7024e/network.go (25.2%)</option>
+				
+				<option value="file6">d7024e/routingtable.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "container/list"
+)
+
+// bucket definition. Contains a List
+type bucket struct {
+        list *list.List
+}
+
+// newBucket returns a new instance of a bucket
+func newBucket() *bucket <span class="cov8" title="1">{
+        bucket := &amp;bucket{}
+        bucket.list = list.New()
+        return bucket
+}</span>
+
+// AddContact adds the Contact to the front of the bucket
+// or moves it to the front of the bucket if it already existed
+func (bucket *bucket) AddContact(contact Contact) <span class="cov8" title="1">{
+        var element *list.Element
+        for e := bucket.list.Front(); e != nil; e = e.Next() </span><span class="cov8" title="1">{
+                nodeID := e.Value.(Contact).ID
+
+                if (contact).ID.Equals(nodeID) </span><span class="cov0" title="0">{
+                        element = e
+                }</span>
+        }
+        <span class="cov8" title="1">if element == nil </span><span class="cov8" title="1">{
+                if bucket.list.Len() &lt; k </span><span class="cov8" title="1">{
+                        //fmt.Println("Adding new node " + contact.ID.String() + " to front of bucket!")
+                        bucket.list.PushFront(contact)
+                }</span>
+        } else<span class="cov0" title="0"> {
+                //fmt.Println("Moving node " + contact.ID.String() + " to front of bucket!")
+                bucket.list.MoveToFront(element)
+        }</span>
+}
+
+// Check what elements exists within a select contact.
+func (bucket *bucket) Contains(contact *Contact)  *list.Element <span class="cov8" title="1">{
+        var element *list.Element
+        for e := bucket.list.Front(); e != nil; e = e.Next() </span><span class="cov8" title="1">{
+                nodeID := e.Value.(Contact).ID
+
+                if (contact).ID.Equals(nodeID) </span><span class="cov8" title="1">{
+                        element = e
+                }</span>
+        }
+
+        <span class="cov8" title="1">return element</span>
+}
+
+// Returns an array of Contacts where the distance has already been calculated
+func (bucket *bucket) GetContactsAndCalcDistances(target *KademliaID) []Contact <span class="cov8" title="1">{
+        var contacts []Contact
+
+        for elt := bucket.list.Front(); elt != nil; elt = elt.Next() </span><span class="cov8" title="1">{
+                contact := elt.Value.(Contact)
+                contact.CalcDistance(target)
+                contacts = append(contacts, contact)
+        }</span>
+
+        <span class="cov8" title="1">return contacts</span>
+}
+
+// Len return the size of the bucket
+func (bucket *bucket) Len() int <span class="cov8" title="1">{
+        return bucket.list.Len()
+}</span>
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package main
+
+import (
+        "bufio"
+        "fmt"
+        "net"
+        "os"
+        "strings"
+)
+// Entrypoint
+func main() <span class="cov0" title="0">{
+        addrs,err := net.InterfaceAddrs()
+        if err != nil </span><span class="cov0" title="0">{
+                os.Stderr.WriteString("Oops: " + err.Error() + "\n")
+                os.Exit(1)
+        }</span>
+        <span class="cov0" title="0">var IP net.IP
+        for _, a := range addrs </span><span class="cov0" title="0">{
+                if ipnet, ok := a.(*net.IPNet); ok &amp;&amp; !ipnet.IP.IsLoopback() </span><span class="cov0" title="0">{
+                        if ipnet.IP.To4() != nil </span><span class="cov0" title="0">{
+                                IP = ipnet.IP
+                                fmt.Println(ipnet.IP.String() + "\n")
+                        }</span>
+                }
+        }
+        <span class="cov0" title="0">net := NewNetwork(&amp;IP)
+        fmt.Println("Started node with ID " + net.localNode.routingTable.me.ID.String())
+        fmt.Println("Node has IP address " + IP.String())
+        go net.Listen()
+
+        for </span><span class="cov0" title="0">{
+                fmt.Printf("\n Enter a command: ")
+                rawInput, _ := bufio.NewReader(os.Stdin).ReadString('\n') // Takes rawinput from console.
+                output := parseInput(rawInput, &amp;net)
+                fmt.Println("Returned output:\n" + output)
+        }</span>
+}
+// Parses the input and sends you to either the single/dual input handler.
+func parseInput(input string, net *Network) string <span class="cov8" title="1">{
+        var command string
+        var value string
+
+        stringinput := strings.Fields(input) //Splits the text into an array with each entry being a word
+
+        if len(stringinput) == 0</span><span class="cov0" title="0">{
+                fmt.Println("Blank input. Try again.")
+        }</span>
+        // Single Input
+        <span class="cov8" title="1">if len(stringinput) &gt; 0 </span><span class="cov8" title="1">{
+                command = stringinput[0]
+                command = strings.ToLower(strings.Trim(command, " \r\n")) //Removes hidden \n etc, which makes string comparision impossible.
+        }</span>
+        // Dual input
+        <span class="cov8" title="1">if len(stringinput) &gt; 1 </span><span class="cov8" title="1">{ // Checks if you have 1 or 2 Commands and then runs the correct function accordingly.
+                value = stringinput[1]
+                // value = strings.ToLower(strings.Trim(value, " \r\n"))
+                value = strings.Trim(value, " \r\n") // Will not make input lowercase (untested)
+                return handleDualInput(command, value, net)
+        }</span> else<span class="cov8" title="1"> {
+                return handleSingleInput(command, 0)
+        }</span>
+}
+// Switch for all single input functions
+func handleSingleInput(command string, testing int) string <span class="cov8" title="1">{
+        switch command </span>{
+        case "exit":<span class="cov8" title="1">
+                return exit(testing)</span>
+        case "help":<span class="cov8" title="1">
+                return help()</span>
+        default:<span class="cov8" title="1">
+                return "INVALID COMMAND, TYPE HELP"</span>
+        }
+}
+// Switch for all dual input functions
+func handleDualInput(command string, value string, network *Network) string <span class="cov8" title="1">{
+        switch command </span>{
+        case "put":<span class="cov8" title="1">
+                return put(value, network)</span>
+        case "join":<span class="cov0" title="0">
+                IP := net.ParseIP(value)[12:]
+                ID := NewKademliaIDFromIP(&amp;IP)
+                network.Join(ID, value)
+                return ""</span>
+        case "get":<span class="cov8" title="1">
+                outputNodeID, outputContent := get(value, network)
+                outputString := ("NodeID: " + outputNodeID + "  Content: " + outputContent)
+                return outputString</span>
+        case "forget":<span class="cov0" title="0">
+                // To-do
+                return ""</span>
+        default:<span class="cov8" title="1">
+                return "INVALID COMMAND, TYPE HELP"</span>
+        }
+}
+
+// Upload data of file downloaded. Check if it can be uploaded. If so, output the objects hash
+func put(content string, net *Network) string <span class="cov8" title="1">{
+        hashedFileString := NewKademliaIDFromData(content)
+        net.Store([]byte(content),hashedFileString)
+        return hashedFileString.String()
+}</span>
+
+// Take hash value as output. Check if that exists in kademlia and download
+// if so, output the contents of the objects and the node it was retrieved from.
+func get(hashValue string, net *Network) (string, string) <span class="cov8" title="1">{
+        hash := NewKademliaID(hashValue)
+        data, nodes := net.DataLookup(hash)
+
+        // TODO What ID should this be?
+        if data != nil </span><span class="cov8" title="1">{
+                return nodes[0].ID.String(),string(data)
+        }</span> else<span class="cov8" title="1"> if len(nodes) &gt; 0</span><span class="cov0" title="0">{
+                return nodes[0].ID.String(), ("Hashvalue Does Not Exist In The Network")
+        }</span> else<span class="cov8" title="1"> {
+                return "[NULL]", ("Could not find node or data in the network")
+        }</span>
+}
+
+// Terminate node.
+func exit(test int) string <span class="cov8" title="1">{
+        if test != 0 </span><span class="cov8" title="1">{
+                return "Exit (Test)"
+        }</span>
+        <span class="cov0" title="0">os.Exit(1)
+        return "Exit (Will not be reached)"</span>
+}
+
+// Prints every command possible (return value due to testability)
+func help() string <span class="cov8" title="1">{
+        return "Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
+                    "Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
+                    "Exit -Terminates the node. " + "\n"
+}</pre>
+		
+		<pre class="file" id="file2" style="display: none">package main
+
+import (
+        "fmt"
+        "sort"
+)
+
+// Contact definition
+// stores the KademliaID, the ip address and the distance
+type Contact struct {
+        ID       *KademliaID
+        Address  string
+        distance *KademliaID
+}
+
+// NewContact returns a new instance of a Contact
+func NewContact(id *KademliaID, address string) Contact <span class="cov8" title="1">{
+        return Contact{id, address, nil}
+}</span>
+
+// CalcDistance calculates the distance to the target and 
+// fills the contacts distance field
+func (contact *Contact) CalcDistance(target *KademliaID) <span class="cov8" title="1">{
+        contact.distance = contact.ID.CalcDistance(target)
+}</span>
+
+// Less returns true if contact.distance &lt; otherContact.distance
+func (contact *Contact) Less(otherContact *Contact) bool <span class="cov8" title="1">{
+        return contact.distance.Less(otherContact.distance)
+}</span>
+
+// String returns a simple string representation of a Contact
+func (contact *Contact) String() string <span class="cov0" title="0">{
+        return fmt.Sprintf(`contact("%s", "%s")`, contact.ID, contact.Address)
+}</span>
+
+// ContactCandidates definition
+// stores an array of Contacts
+type ContactCandidates struct {
+        contacts []Contact
+}
+
+// Append an array of Contacts to the ContactCandidates
+func (candidates *ContactCandidates) Append(contacts []Contact) <span class="cov8" title="1">{
+        candidates.contacts = append(candidates.contacts, contacts...)
+}</span>
+
+// AppendContact appends a single contact rather than an array of contacts
+func (candidates *ContactCandidates) AppendContact(contact Contact) <span class="cov8" title="1">{
+        candidates.contacts = append(candidates.contacts, contact)
+}</span>
+
+// GetContacts returns the first count number of Contacts. The complete list will be returned if there are fewer contacts.
+func (candidates *ContactCandidates) GetContacts(count int) []Contact <span class="cov8" title="1">{
+        if len(candidates.contacts) &lt; count </span><span class="cov8" title="1">{
+                return candidates.contacts
+        }</span> else<span class="cov8" title="1"> {
+                return candidates.contacts[:count]
+        }</span>
+}
+
+// Sort the Contacts in ContactCandidates
+func (candidates *ContactCandidates) Sort() <span class="cov8" title="1">{
+        sort.Sort(candidates)
+}</span>
+
+// Len returns the length of the ContactCandidates
+func (candidates *ContactCandidates) Len() int <span class="cov8" title="1">{
+        return len(candidates.contacts)
+}</span>
+
+// Swap the position of the Contacts at i and j
+// WARNING does not check if either i or j is within range
+func (candidates *ContactCandidates) Swap(i, j int) <span class="cov8" title="1">{
+        candidates.contacts[i], candidates.contacts[j] = candidates.contacts[j], candidates.contacts[i]
+}</span>
+
+// Less returns true if the Contact at index i is smaller than 
+// the Contact at index j
+func (candidates *ContactCandidates) Less(i, j int) bool <span class="cov8" title="1">{
+        return candidates.contacts[i].Less(&amp;candidates.contacts[j])
+}</span>
+
+// Contains checks if the list of contacts already contains a node. This assumes that the
+// candidates have been sorted and have calculated distances to the target node.
+// No consideration is taken for unsorted contacts or contacts with improper distance.
+func (candidates *ContactCandidates) Contains(contact *Contact) bool <span class="cov8" title="1">{
+        /*
+        for i := 0; i &lt; candidates.Len(); i++ {
+                if !candidates.contacts[i].Less(contact) {
+                        if candidates.contacts[i].distance.Equals(contact.distance) {
+                                // The contact exists among the candidates
+                                return true
+                        } else {
+                                // The contact is not among the candidates
+                                return false
+                        }
+                }
+        }*/
+        for i := 0; i &lt; candidates.Len(); i++ </span><span class="cov8" title="1">{
+                if candidates.contacts[i].ID.Equals(contact.ID) </span><span class="cov8" title="1">{
+                        return true
+                }</span>
+        }
+        <span class="cov8" title="1">return false</span> // If the candidates array is empty
+}
+
+// Remove removes a contact from an array if it exists, otherwise it does nothing
+func (candidates *ContactCandidates) Remove(contact *Contact) <span class="cov8" title="1">{
+        if !candidates.Contains(contact) </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov8" title="1">fmt.Println("Len of contact candidates before remove: ", candidates.Len())
+        for i := 0; i &lt; len(candidates.contacts); i++</span><span class="cov8" title="1">{
+                if candidates.contacts[i].ID.Equals(contact.ID) </span><span class="cov8" title="1">{
+                        candidates.contacts = append(candidates.contacts[:i], candidates.contacts[i+1:]...)
+                        fmt.Println("Len of contact candidates after remove: ", candidates.Len())
+                        return
+                }</span>
+        }
+}</pre>
+		
+		<pre class="file" id="file3" style="display: none">package main
+
+// The node itself is an object that runs on it's own thread and waits for commands from the networking part
+// of a container. We don't need to perform any udp calls from here, just return messages to the local
+// network thread which then sends it through the network. Okidoki?
+type Node struct {
+        storage map[KademliaID][]byte
+        routingTable *RoutingTable
+}
+
+// Create a new Node
+func NewNode(ID Contact) Node <span class="cov8" title="1">{
+        return Node{make(map[KademliaID][]byte), NewRoutingTable(ID)}
+}</span>
+
+// Local lookup of the size closest contacts to some target kademlia ID
+func (kademlia *Node) LookupContact(target *KademliaID, size int) []Contact <span class="cov8" title="1">{
+        return kademlia.routingTable.FindClosestContacts(target, size)
+}</span>
+
+// Lookup data
+func (kademlia *Node) LookupData(hash *KademliaID) []byte <span class="cov8" title="1">{
+        if kademlia.storage[*hash] == nil </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">return kademlia.storage[*hash]</span>
+}
+
+// Store data
+func (kademlia *Node) Store(data []byte, hash *KademliaID) <span class="cov8" title="1">{
+        if  kademlia.storage[*hash] != nil</span><span class="cov8" title="1">{
+                // TODO Throw some error or something
+                return
+        }</span>
+        <span class="cov8" title="1">kademlia.storage[*hash] = data</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package main
+
+import (
+        "crypto/sha1"
+        "encoding/hex"
+        "net"
+)
+
+// the static number of bytes in a KademliaID
+const ID_LEN = 20
+
+// type definition of a KademliaID
+type KademliaID [ID_LEN]byte
+
+func sha1Hash(content string) []byte <span class="cov8" title="1">{
+        // https://gobyexample.com/sha1-hashes
+        h := sha1.New()
+        h.Write([]byte(content))
+        hashedFileBytes := h.Sum(nil)
+        //hashedFileString := hex.EncodeToString(hashedFileBytes) // Encode byte[] to string before entering it into the hashmap.
+        return hashedFileBytes
+}</span>
+
+// NewKademliaID returns a new instance of a KademliaID based on the string input
+func NewKademliaID(data string) *KademliaID <span class="cov8" title="1">{
+        decoded, _ := hex.DecodeString(data)
+
+        newKademliaID := KademliaID{}
+        for i := 0; i &lt; ID_LEN; i++ </span><span class="cov8" title="1">{
+                newKademliaID[i] = decoded[i]
+        }</span>
+
+        <span class="cov8" title="1">return &amp;newKademliaID</span>
+}
+
+func NewKademliaIDFromData(data string) *KademliaID <span class="cov8" title="1">{
+        //decoded, _ := hex.DecodeString(data)
+        decoded := sha1Hash(data)
+
+        newKademliaID := KademliaID{}
+        for i := 0; i &lt; ID_LEN; i++ </span><span class="cov8" title="1">{
+                newKademliaID[i] = decoded[i]
+        }</span>
+
+        <span class="cov8" title="1">return &amp;newKademliaID</span>
+}
+
+// Create kademlia ID from an IP address, for example a node.
+func NewKademliaIDFromIP(ip *net.IP) *KademliaID <span class="cov8" title="1">{
+        //decoded, _ := hex.DecodeString(ip.String())
+        decoded := sha1Hash(ip.String())
+        newKademliaID := KademliaID{}
+        for i := 0; i &lt; ID_LEN; i++ </span><span class="cov8" title="1">{
+                newKademliaID[i] = decoded[i]
+        }</span>
+
+        <span class="cov8" title="1">return &amp;newKademliaID</span>
+}
+
+// Less returns true if kademliaID &lt; otherKademliaID (bitwise)
+func (kademliaID KademliaID) Less(otherKademliaID *KademliaID) bool <span class="cov8" title="1">{
+        for i := 0; i &lt; ID_LEN; i++ </span><span class="cov8" title="1">{
+                if kademliaID[i] != otherKademliaID[i] </span><span class="cov8" title="1">{
+                        return kademliaID[i] &lt; otherKademliaID[i]
+                }</span>
+        }
+        <span class="cov8" title="1">return false</span>
+}
+
+// Equals returns true if kademliaID == otherKademliaID (bitwise)
+func (kademliaID KademliaID) Equals(otherKademliaID *KademliaID) bool <span class="cov8" title="1">{
+        for i := 0; i &lt; ID_LEN; i++ </span><span class="cov8" title="1">{
+                if kademliaID[i] != otherKademliaID[i] </span><span class="cov8" title="1">{
+                        return false
+                }</span>
+        }
+        <span class="cov8" title="1">return true</span>
+}
+
+// CalcDistance returns a new instance of a KademliaID that is built 
+// through a bitwise XOR operation betweeen kademliaID and target
+func (kademliaID KademliaID) CalcDistance(target *KademliaID) *KademliaID <span class="cov8" title="1">{
+        result := KademliaID{}
+        for i := 0; i &lt; ID_LEN; i++ </span><span class="cov8" title="1">{
+                result[i] = kademliaID[i] ^ target[i]
+        }</span>
+        <span class="cov8" title="1">return &amp;result</span>
+}
+
+// String returns a simple string representation of a KademliaID
+func (kademliaID *KademliaID) String() string <span class="cov8" title="1">{
+        return hex.EncodeToString(kademliaID[0:ID_LEN])
+}</span>
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package main
+
+import (
+        "fmt"
+        "net"
+        "strconv"
+        "strings"
+        "time"
+)
+
+// Network requests:
+// 3 bit (1 byte) message description:
+// 000: PING
+// 010: STORE
+// 100: FIND_NODE
+// 110: FIND_VALUE
+// Followed by a 20 byte ID of needed and data for STORE command
+// 2 bit + 20 byte +
+
+// Protocol for returning information:
+// PING_ACK: Contains nothing
+
+// STORE_ACK: Not sure if this is a requirement. We can probably skip it
+
+// FIND_NODE_ACK: Nodes are stored in tuples with &lt;IP, NODE_ID&gt; in a long list without description of how many nodes there are.
+//                 We already know the size of each tuple and the size of the array -&gt; size/tuple_bytes = number of tuples
+
+// FIND_VALUE_ACK: message type followed by one byte indicating a list of nodes or some actual data.
+//                 0: Found no data. Returns &lt;=K closest nodes
+//                 1: Found data. Returns the full byte array
+
+// Golang doesn't have enums, this the closest alternative I could find
+const (
+        PING byte = iota
+        PING_ACK byte = iota
+
+        STORE byte = iota
+        STORE_ACK byte = iota
+
+        FIND_NODE byte = iota
+        FIND_NODE_ACK byte = iota
+
+        FIND_DATA byte = iota
+        FIND_DATA_ACK_SUCCESS byte = iota
+        FIND_DATA_ACK_FAIL byte = iota
+)
+
+const MAX_PACKET_SIZE = 1024
+const IP_LEN = 4
+const HEADER_LEN = 1
+const BUCKET_HEADER_LEN = 1
+const TIMEOUT = 500
+
+const KAD_PORT = "5001"
+
+type Network struct {
+        localNode Node
+}
+
+func NewNetwork(ip *net.IP) Network <span class="cov8" title="1">{
+        return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String()))}
+}</span>
+
+// Handles FIND_NODE  requests (initiated by findNodeRPC) from other nodes by sending back a bucket of the k closest
+// nodes to some kademlia ID.
+// msgType is the type of message (message description) that will be sent back to the requester.
+func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, address *net.UDPAddr, msgType byte) <span class="cov0" title="0">{
+        // Message format:
+        // REC: [MSG TYPE, REQUESTER ID, TARGET ID]
+        // SEND: [MSG TYPE, BUCKET SIZE, BUCKET:[ID, IP]]
+
+        requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
+        targetID := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
+        bucket := network.localNode.LookupContact(targetID, k + 1)
+        bucket = removeSelfOrTail(requesterID, bucket, len(bucket) == k + 1)
+
+        fmt.Println("Received a FIND_NODE request from node", requesterID,
+                "with a target ID", targetID)
+
+        // 1 byte for type of msg, 1 byte for number of contacts
+        var reply = make([]byte, HEADER_LEN+BUCKET_HEADER_LEN+(ID_LEN+IP_LEN)*len(bucket))
+
+        // Set the message type
+        reply[0] = msgType
+
+        // Set the length of the bucket to send back
+        reply[HEADER_LEN] = byte(len(bucket))
+
+        // Send the actual bucket (serialize the contacts and put them in the message)
+        for i ,data := range bucket </span><span class="cov0" title="0">{
+                // static size is the size that is the same for all replies
+                // (size of msg type + size of bucket + size of my ID)
+                staticSize := HEADER_LEN + BUCKET_HEADER_LEN
+                // dynamic size is the size from prev loops (size of i-1 serialized contacts in bucket)
+                dynamicSize := (ID_LEN + IP_LEN) * i
+
+                // Set node ID
+                copy(reply[staticSize+dynamicSize : staticSize+dynamicSize+(ID_LEN+IP_LEN) ], data.ID[:])
+
+                // convert ip string to byte array
+                var nodeAddress = net.ParseIP(strings.Split(data.Address,":")[0]).To4()
+
+                // Put the IP address
+                copy(reply[staticSize+dynamicSize+ID_LEN: staticSize+dynamicSize+ID_LEN+IP_LEN],
+                        nodeAddress)
+        }</span>
+        <span class="cov0" title="0">(*connection).WriteToUDP(reply, address)</span>
+}
+
+// unpackMessage handles all kademlia requests from other nodes.
+func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, address *net.UDPAddr) <span class="cov0" title="0">{
+        switch messageType := (*msg)[0]; messageType </span>{
+        case PING:<span class="cov0" title="0">
+                requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
+
+                fmt.Println("Received a PING request from node", requesterID.String())
+                reply := make([]byte, HEADER_LEN)
+                reply[0] = PING_ACK
+
+                _,err := (*connection).WriteToUDP(reply, address)
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Println("There was an error when replying to a PING request.", err.Error())
+                }</span>
+                <span class="cov0" title="0">return</span>
+        case FIND_NODE:<span class="cov0" title="0">
+                network.sendFindNodeAck(msg, connection, address, FIND_NODE_ACK)
+                return</span>
+        case FIND_DATA:<span class="cov0" title="0">
+                // Message format:
+                // REC:  [MSG TYPE, REQUESTER ID, HASH]
+                // SEND: [MSG TYPE, REQUESTER ID, BUCKET SIZE, BUCKET:[ID, IP]]
+                //   OR  [MSG TYPE, DATA]
+                fmt.Println("Received a FIND_DATA request")
+                hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
+                data := network.localNode.LookupData(hash)
+                if data != nil </span><span class="cov0" title="0">{
+                        var reply = make([]byte, HEADER_LEN+len(data))
+                        reply[0] = FIND_DATA_ACK_SUCCESS
+                        copy(reply[HEADER_LEN:], data)
+                        _, err := (*connection).WriteToUDP(reply, address)
+                        if err != nil </span><span class="cov0" title="0">{
+                                fmt.Println("There was an error when replying to a FIND_DATA request.", err.Error())
+                        }</span>
+                } else<span class="cov0" title="0"> {
+                        network.sendFindNodeAck(msg, connection, address, FIND_DATA_ACK_FAIL)
+                }</span>
+                <span class="cov0" title="0">return</span>
+        case STORE:<span class="cov0" title="0">
+                // Message format:
+                // REC: [MSG TYPE, REQUESTER ID, HASH, DATA...]
+                // SEND: nothing
+                requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
+                hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
+                data := (*msg)[HEADER_LEN+ID_LEN+ID_LEN:MAX_PACKET_SIZE]
+                fmt.Println("Received a STORE request from node", requesterID.String())
+
+                network.localNode.Store(data, hash)
+                return</span>
+        }
+}
+
+// Listen listens for incoming requests. Once a message is received it is directed to unpackMessage.
+// Also checks if the requesting node should be added to the routing table of the local node
+// (see kickTheBucket)
+func (network *Network) Listen() <span class="cov0" title="0">{
+                for </span><span class="cov0" title="0">{
+                        conn, err := net.ListenUDP("udp", &amp;net.UDPAddr{
+                                Port:5001,
+                        })
+                        if err == nil </span><span class="cov0" title="0">{
+                                msg := make([]byte, MAX_PACKET_SIZE)
+                                conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+                                _,addr,err := conn.ReadFromUDP(msg)
+
+                                if err != nil </span><span class="cov0" title="0">{
+                                        fmt.Println("Could not read incoming message")
+                                }</span> else<span class="cov0" title="0"> {
+                                        ID := (*KademliaID)(msg[1:1+ID_LEN])
+
+
+                                        //fmt.Println("Attempting to create a contact")
+                                        contact := NewContact(ID,addr.IP.To4().String())
+                                        //fmt.Println("Attempting to kick the bucket")
+                                        network.kickTheBucket(&amp;contact)
+
+                                        network.unpackMessage(&amp;msg,conn,addr)
+                                }</span>
+
+                        } else<span class="cov0" title="0"> {
+                                fmt.Println("Could not read from incoming connection.", err.Error())
+                        }</span>
+                        <span class="cov0" title="0">conn.Close()</span>
+                }
+}
+
+// Join a kademlia network via a known nodes IP and ID. The ID is probably the SHA-1 hash of its IP.
+func (network *Network) Join(id *KademliaID, address string) <span class="cov0" title="0">{
+        knownNode := NewContact(id, address)
+        //network.localNode.routingTable.AddContact(knownNode)
+
+        if network.Ping(&amp;knownNode) </span><span class="cov0" title="0">{ // If Ping is successful
+                fmt.Println("Joined network node " + knownNode.Address + " successfully!")
+                network.NodeLookup(network.localNode.routingTable.me.ID) // Start lookup algorithm on yourself
+        }</span>
+}
+
+// Ping some node directly with the given contact.address.
+// Returns true if the node responded successfully, and false if it did not
+func (network *Network) Ping(contact *Contact) bool <span class="cov0" title="0">{
+        hostName := contact.Address
+        service := hostName + ":" + KAD_PORT
+
+        start := time.Now()
+        remoteAddr, err := net.ResolveUDPAddr("udp",service)
+        conn, err := net.DialUDP("udp", nil, remoteAddr)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
+                return false
+        }</span> else<span class="cov0" title="0"> {
+                fmt.Println("Connection established to " + remoteAddr.String() + "!")
+        }</span>
+
+        // Setup msg and send
+        <span class="cov0" title="0">msg := make([]byte, HEADER_LEN+ID_LEN)
+        msg[0] = PING
+        copy(msg[HEADER_LEN:], network.localNode.routingTable.me.ID[:])
+        conn.Write(msg)
+
+        // Setup and read reply
+        msg = make([]byte, HEADER_LEN)
+        conn.SetReadDeadline(time.Now().Add(20*time.Second))
+        conn.ReadFromUDP(msg)
+
+        tmp := make([]byte,255)
+        //conn.Read(tmp)
+        conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+        _,_,err2 := conn.ReadFromUDP(tmp)
+        conn.Close()
+
+        if err2 != nil </span><span class="cov0" title="0">{
+                fmt.Println("Could not read Ping message from", contact.ID.String())
+                return false
+        }</span>
+
+        <span class="cov0" title="0">duration := time.Since(start)
+
+        // Update routing table with the contact that we pinged
+        network.kickTheBucket(contact)
+
+        if msg[0] == PING_ACK </span><span class="cov0" title="0">{
+                fmt.Println("Successful ping to " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
+                        10) + " ms")
+                return true
+        }</span> else<span class="cov0" title="0"> {
+                fmt.Println("Received unrecognized response from node", contact.ID.String(), "when pinged")
+                fmt.Println("Received message of type " + strconv.FormatInt(int64(msg[0]),10))
+                return false
+        }</span>
+}
+
+// NodeLookup is the central kademlia node lookup algorithm that can be used to find nodes (or data, see DataLookup)
+// depending on the lookup ID. It will always try to locate the K closest nodes in the network and starts by sending
+// udp messages and recursively locates nodes that are closer until no more nodes can be found. Each node
+// will then receive these messages and search through their own routing table
+func (network *Network) NodeLookup(lookupID *KademliaID) []Contact <span class="cov8" title="1">{
+        // Get the initial k closest nodes from the current node
+        initNodes := network.localNode.LookupContact(lookupID, k)
+        if len(initNodes) == 0 </span><span class="cov8" title="1">{
+                return []Contact{}
+        }</span>
+
+        <span class="cov0" title="0">var visited ContactCandidates
+        var unvisited ContactCandidates
+        unvisited.Append(initNodes)
+
+        wideSearch := false
+        var searchRange = alpha
+        for !visitedKClosest(&amp;unvisited, &amp;visited, k) </span><span class="cov0" title="0">{ // Keep sending RPCs until k closest nodes has been visited
+                searchRange = setSearchSize(wideSearch, &amp;unvisited)
+
+                var newRoundNodes []Contact
+                // Actually visit &lt;=alpha of k-closest nodes grabbed in the prev step
+                for currentNode := 0; currentNode &lt; searchRange; </span><span class="cov0" title="0">{
+                        newBucket, success := network.findNodeRPC(&amp;unvisited.contacts[currentNode], lookupID) // Send RPC
+                        if success </span><span class="cov0" title="0">{
+                                newRoundNodes = append(newRoundNodes, newBucket...)
+                                currentNode ++
+                        }</span> else<span class="cov0" title="0"> {
+                                unvisited.contacts = append(unvisited.contacts[:currentNode],
+                                        unvisited.contacts[currentNode+1:]...)
+                                searchRange--
+                        }</span>
+                }
+                <span class="cov0" title="0">postIterationProcessing(&amp;visited, &amp;unvisited, &amp;newRoundNodes, searchRange)</span>
+        }
+
+        <span class="cov0" title="0">if visited.Len() &lt; k </span><span class="cov0" title="0">{
+                return visited.GetContacts(visited.Len())
+        }</span> else<span class="cov0" title="0"> {
+                return visited.GetContacts(k)
+        }</span>
+}
+
+// DataLookup works exactly like NodeLookup, except that we return data instead of a bucket if we find it from
+// any of the findDataRPCs (which replaces findNodeRPC from NodeLookup)
+func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) <span class="cov8" title="1">{
+        localData := network.localNode.LookupData(hash)
+        if localData != nil </span><span class="cov8" title="1">{
+                fmt.Println("Found data on local node")
+                return localData, []Contact{network.localNode.routingTable.me}
+        }</span>
+
+        <span class="cov8" title="1">initNodes := network.localNode.LookupContact(hash, k)
+        if len(initNodes) == 0 </span><span class="cov8" title="1">{
+                return nil, []Contact{}
+        }</span>
+
+        <span class="cov0" title="0">var visited ContactCandidates
+        var unvisited ContactCandidates
+        unvisited.Append(initNodes)
+
+        wideSearch := false
+        var searchRange = alpha
+        for !visitedKClosest(&amp;unvisited, &amp;visited, k) </span><span class="cov0" title="0">{
+                searchRange = setSearchSize(wideSearch, &amp;unvisited)
+
+                var newRoundNodes []Contact
+                // Actually visit &lt;=alpha of k-closest nodes grabbed in the prev step
+                for currentNode := 0; currentNode &lt; searchRange; </span><span class="cov0" title="0">{
+                        data, newBucket, success := network.findDataRPC(&amp;unvisited.contacts[currentNode], hash) // Send RPC
+                        if success </span><span class="cov0" title="0">{
+                                if data != nil </span><span class="cov0" title="0">{
+                                        return data, unvisited.contacts[currentNode:currentNode+1]
+                                }</span>
+                                <span class="cov0" title="0">newRoundNodes = append(newRoundNodes, newBucket...)
+                                currentNode ++</span>
+                        } else<span class="cov0" title="0"> {
+                                unvisited.contacts = append(unvisited.contacts[:currentNode],
+                                        unvisited.contacts[currentNode+1:]...)
+                                searchRange--
+                        }</span>
+                }
+                <span class="cov0" title="0">postIterationProcessing(&amp;visited, &amp;unvisited, &amp;newRoundNodes, searchRange)</span>
+        }
+
+        <span class="cov0" title="0">if visited.Len() &lt; k </span><span class="cov0" title="0">{
+                return nil, visited.GetContacts(visited.Len())
+        }</span> else<span class="cov0" title="0"> {
+                return nil, visited.GetContacts(k)
+        }</span>
+}
+
+// Store sends a store msg to the 20th closest nodes a bucket
+func (network *Network) Store(data []byte, hash *KademliaID) <span class="cov8" title="1">{
+        var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
+        fmt.Println("Storing data in " + strconv.FormatInt(int64(len(nodes)),10) + " external nodes")
+        network.localNode.routingTable.me.CalcDistance(hash)
+        if len(nodes) &lt; k </span><span class="cov8" title="1">{
+                nodes = append(nodes, network.localNode.routingTable.me)
+        }</span> else<span class="cov0" title="0"> if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) </span><span class="cov0" title="0">{
+                // If the locals node distance is less than the last node in the bucket,
+                // Im actually supposed to be in the bucket and not that node.
+                nodes[len(nodes)-1] = network.localNode.routingTable.me
+        }</span>
+        <span class="cov8" title="1">for _,contact := range nodes </span><span class="cov8" title="1">{ // What type of syntax is this??
+                if network.localNode.routingTable.me.ID == contact.ID </span><span class="cov8" title="1">{
+                        // No need to send a network request. Send the RPC directly to the local node thread.
+                        fmt.Println("Storing data on local node")
+                        network.localNode.Store(data, hash)
+                }</span> else<span class="cov0" title="0"> {
+                        // This is easily done async because we don't have to care what happens after!
+                        go network.storeDataRPC(contact, hash, data)
+                }</span>
+        }
+}
+
+// findNodeRPC sends a FIND_NODE request to some contact with some targetID.
+// Returns the k closest nodes to the target ID and if the connection to the contact was successful or not
+func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) ([]Contact, bool) <span class="cov0" title="0">{
+        hostName := contact.Address
+        service := hostName + ":" + KAD_PORT
+        remoteAddr, err := net.ResolveUDPAddr("udp",service)
+
+        conn, err := net.DialUDP("udp", nil, remoteAddr)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("Could not establish connection when sending findNodeRPC to ", contact.ID.String(),"   ", contact.Address)
+                return nil,false
+        }</span> else<span class="cov0" title="0"> {
+                // Message format:
+                // SEND: [MSG TYPE, REQUESTER ID, TARGET ID]
+                // REC:  [MSG TYPE, REQUESTER ID, BUCKET SIZE, BUCKET:[ID, IP]]
+
+                // Send FIND_NODE request
+                msg := make([]byte, HEADER_LEN+ID_LEN+ID_LEN)
+                msg[0] = FIND_NODE
+                copy(msg[HEADER_LEN : HEADER_LEN+ID_LEN], network.localNode.routingTable.me.ID[:])
+                copy(msg[HEADER_LEN+ID_LEN: HEADER_LEN+ID_LEN+ID_LEN], targetID[:])
+                conn.Write(msg)
+
+                // Read and handle reply
+                reply := make([]byte, HEADER_LEN+BUCKET_HEADER_LEN+(ID_LEN+IP_LEN)*k)
+                conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+                _,_,err := conn.ReadFromUDP(reply)
+
+                conn.Close()
+
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Println("Could not read FIND_NODE_RPC from " + contact.ID.String())
+                        return nil,false
+                }</span>
+
+                // TODO: This can be put into a function and reused in findDataRPC
+                <span class="cov0" title="0">kClosestReply := handleBucketReply(&amp;reply)
+
+                network.kickTheBucket(contact)
+                return kClosestReply.GetContactsAndCalcDistances(targetID), true</span>
+        }
+}
+
+// findNodeRPC sends a FIND_DATA request to some contact with some targetID.
+// Returns the k closest nodes to the hash OR the data that matches the hash (in the hash, data pair)
+// and if the connection to the contact was successful or not. If the connection was unsuccessful,
+// both data and k closest contacts are nil.
+func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte, []Contact, bool) <span class="cov0" title="0">{
+        hostName := contact.Address
+        service := hostName + ":" + KAD_PORT
+        remoteAddr, err := net.ResolveUDPAddr("udp",service)
+
+        conn, err := net.DialUDP("udp", nil, remoteAddr)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("Could not establish connection when sending findDataRPC to " + contact.ID.String())
+                return nil, nil, false
+        }</span> else<span class="cov0" title="0"> {
+                fmt.Println("Sending FIND_DATA to node ", contact.ID.String())
+
+                msg := make([]byte, HEADER_LEN+ID_LEN+ID_LEN)
+                msg[0] = FIND_DATA
+                copy(msg[HEADER_LEN : HEADER_LEN+ID_LEN], network.localNode.routingTable.me.ID[:])
+                copy(msg[HEADER_LEN+ID_LEN: HEADER_LEN+ID_LEN+ID_LEN], hash[:])
+                conn.Write(msg)
+
+                reply := make([]byte, MAX_PACKET_SIZE)
+                conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+                _,_,err := conn.ReadFromUDP(reply)
+
+                conn.Close()
+
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Println("Could not read FIND_DATA_RPC from " + contact.ID.String())
+                        return nil, nil, false
+                }</span>
+
+                // TODO This updates the routing table with the node we just queried.
+                <span class="cov0" title="0">network.kickTheBucket(contact)
+
+                if reply[0] == FIND_DATA_ACK_FAIL </span><span class="cov0" title="0">{
+                        // Message format:
+                        // REC: [MSG TYPE, REQUESTER ID, BUCKET SIZE, BUCKET:[ID, IP]]
+                        // (This has the same format as findNodeAck)
+                        kClosestReply := handleBucketReply(&amp;reply)
+                        return nil, kClosestReply.GetContactsAndCalcDistances(hash), true
+
+                }</span> else<span class="cov0" title="0"> if reply[0] == FIND_DATA_ACK_SUCCESS </span><span class="cov0" title="0">{
+                        // Message format:
+                        // REC: [MSG TYPE, DATA]
+                        return reply[HEADER_LEN:], nil, true
+                }</span> else<span class="cov0" title="0"> {
+                        return nil, nil, false
+                }</span>
+        }
+}
+
+// storeDataRPC sends a STORE request to some contact with a hash value and some data
+// The function does not care if the data is correctly stored or not by the contact
+// and therefore does not return anything
+func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []byte) <span class="cov0" title="0">{
+        hostName := contact.Address
+        service := hostName + ":" + KAD_PORT
+        remoteAddr, err := net.ResolveUDPAddr("udp",service)
+        conn, err := net.DialUDP("udp", nil, remoteAddr)
+
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("Could not establish connection when sending storeDataRPC to " + contact.ID.String())
+        }</span> else<span class="cov0" title="0"> {
+                // Message format:
+                // SEND: [MSG TYPE, REQUESTER ID, HASH, DATA...]
+                // REC: nothing
+
+                // Prepare STORE RPC
+                storeMessage := make([]byte, HEADER_LEN+ID_LEN)
+                storeMessage[0] = STORE
+                copy(storeMessage[HEADER_LEN:HEADER_LEN+ID_LEN], network.localNode.routingTable.me.ID[:])
+                copy(storeMessage[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN], hash[:])
+                storeMessage = append(storeMessage, data...)
+
+                conn.Write(storeMessage)
+        }</span>
+        <span class="cov0" title="0">conn.Close()</span>
+}
+
+// Check if a bucket is full and then kick one node if it does not respond to a ping message.
+// Call this function whenever you want to add a new node to the routing table. The node can either
+// already exist in a bucket or be a new node.
+func (network *Network) kickTheBucket(contact *Contact) <span class="cov0" title="0">{
+        // First find the appropriate bucket
+        bucketIndex := network.localNode.routingTable.getBucketIndex(contact.ID)
+        bucket := network.localNode.routingTable.buckets[bucketIndex]
+
+        if bucket.Len() == k </span><span class="cov0" title="0">{
+                element := bucket.Contains(contact)
+                if element != nil </span><span class="cov0" title="0">{
+                        bucket.list.MoveToFront(element)
+                }</span> else<span class="cov0" title="0"> {
+                        // Choose a node to sacrifice
+                        sacrifice := bucket.list.Back().Value.(Contact)
+
+                        if network.Ping(&amp;sacrifice) </span>{<span class="cov0" title="0">
+                                //fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
+                        }</span> else<span class="cov0" title="0"> {
+                                bucket.list.Remove(bucket.list.Back())
+                                bucket.AddContact(*contact)
+                        }</span>
+                }
+        } else<span class="cov0" title="0"> {
+                bucket.AddContact(*contact)
+        }</span>
+}
+
+// We don't want to send back the requester its own ID so that it has itself in its own bucket.
+// removeSelfOrTail therefore grabs a bucket (of size k+1) and either remove the requesterID if it exists,
+// or the tail (the furthest one away of the nodes) if it doesn't.
+// Removing tail is optional (you don't want to do this if bucket is already less than k)
+func removeSelfOrTail(requesterID *KademliaID, bucket []Contact, removeTail bool) []Contact <span class="cov8" title="1">{
+        for index, contact := range bucket </span><span class="cov8" title="1">{
+                if *requesterID == *contact.ID </span><span class="cov8" title="1">{
+                        bucket = append(bucket[:index], bucket[index + 1:]...)
+                        return bucket
+                }</span> else <span class="cov8" title="1">{
+                }</span>
+        }
+        <span class="cov8" title="1">if removeTail </span><span class="cov8" title="1">{
+                return bucket[:len(bucket)-1]
+        }</span>
+        <span class="cov8" title="1">return bucket</span>
+}
+
+// addNewNodes adds new nodes from the current iteration to the unvisited collection
+// It avoids duplicates, which means that all nodes in unvisited + visited will be unique (ID vise)
+func addNewNodes(visited *ContactCandidates, unvisited *ContactCandidates,
+        newNodes []Contact) <span class="cov8" title="1">{
+        allOld := *visited // All nodes from the previous rounds that we have seen, visited and unvisited
+        allOld.Append(unvisited.contacts)
+        var toBeAdded ContactCandidates
+        for i := 0; i &lt; len(newNodes); i++ </span><span class="cov8" title="1">{
+                // Check for duplicates among the nodes from prev rounds (visited and unvisited)
+                // Check for duplicates among newNodes
+                if !allOld.Contains(&amp;newNodes[i]) &amp;&amp; !toBeAdded.Contains(&amp;newNodes[i]) </span><span class="cov8" title="1">{
+                        toBeAdded.AppendContact(newNodes[i])
+                        //toBeAdded.Sort()
+                }</span>
+        }
+        <span class="cov8" title="1">unvisited.Append(toBeAdded.contacts)</span>
+        //unvisited.Sort()
+}
+
+// visitedKClosest checks if the NodeLookup (and DataLookup) algorithm is finished by
+// comparing the known k closest nodes to the visited nodes
+// returns either true (finished) or false (not finished). See implementation comments for more detail
+func visitedKClosest(unvisited *ContactCandidates, visited *ContactCandidates, k int) bool <span class="cov8" title="1">{
+        visited.Sort()
+        unvisited.Sort()
+
+        // There are no new contacts to visit! We must be done, regardless of how many nodes
+        // we have already visited (name of function should change?)
+        if unvisited.Len() == 0 </span><span class="cov8" title="1">{
+                return true
+        }</span>
+
+        // If we have visited k or more nodes, we could POTENTIALLY be done. Let's dive deeper ...
+        <span class="cov8" title="1">if visited.Len() &gt;= k </span><span class="cov8" title="1">{
+                // If the last contact in visited is closer than the first contact in unvisited,
+                // all visited contacts are the closest. We are done.
+                if visited.contacts[k-1].Less(&amp;unvisited.contacts[0]) </span><span class="cov8" title="1">{
+                        return true
+                }</span>
+                // Otherwise, there is a contact that is part of the k closest collection that
+                // we have not yet visited.
+                <span class="cov8" title="1">return false</span>
+        } else<span class="cov0" title="0"> {
+                // If we have nodes to visit (unvisited.Len() &gt; 0) but we have not yet visited k nodes,
+                // we are not done
+                return false
+        }</span>
+}
+
+// doWideSearch checks if the next iteration in the NodeLookup (or DataLookup) algorithm should be a
+// "wide search" or not by comparing the distance of some new contacts (this iteration)
+// to some already known contacts (previous iterations)
+// Definition of wide search: "If a round of FIND_NODEs fails to return a node any closer than the closest already seen,
+// the initiator resends the FIND_NODE to all of the closest k nodes it has not already queried"
+func doWideSearch(newContacts *[]Contact, closest Contact) bool <span class="cov8" title="1">{
+        for _, contact := range *newContacts </span><span class="cov8" title="1">{
+                if contact.Less(&amp;closest) </span><span class="cov8" title="1">{
+                        return false
+                }</span>
+        }
+        <span class="cov8" title="1">return true</span>
+}
+
+// handleBucketReply takes a byte slice and unserializes it into a bucket (collection of contacts)
+func handleBucketReply(msg *[]byte) bucket <span class="cov8" title="1">{
+        totalContacts := int((*msg)[HEADER_LEN])
+        result := *newBucket()
+        for i := 0; i &lt; totalContacts; i++ </span><span class="cov8" title="1">{
+                // static size is the size that is the same for all replies
+                // (size of msg type + size of bucket + size of my ID)
+                staticSize := HEADER_LEN + BUCKET_HEADER_LEN
+                // dynamic size is the size from prev loops (size of i-1 serialized contacts in bucket)
+                dynamicSize := (ID_LEN + IP_LEN) * i
+
+                id := (*msg)[staticSize+dynamicSize: staticSize+dynamicSize+ID_LEN]
+
+                IP := net.IPv4((*msg)[staticSize+dynamicSize+ID_LEN],
+                        (*msg)[staticSize+dynamicSize+ID_LEN+1],
+                        (*msg)[staticSize+dynamicSize+ID_LEN+2],
+                        (*msg)[staticSize+dynamicSize+ID_LEN+3])
+                contact := NewContact((*KademliaID)(id), IP.String())
+                result.AddContact(contact)
+        }</span>
+        <span class="cov8" title="1">return result</span>
+}
+
+// setSearchSize returns the number of nodes to visit this iteration.
+// The size is dependent on the boolean wideSearch (if wide search is enabled or not)
+// and how many unvisited nodes there are
+func setSearchSize(wideSearch bool, unvisitedNodes *ContactCandidates) int <span class="cov8" title="1">{
+        var result int
+        if wideSearch </span><span class="cov8" title="1">{
+                // Grab &lt;=k nodes to visit
+                wideSearch = false
+                result = k
+        }</span> else<span class="cov8" title="1"> {
+                // Grab &lt;=alpha nodes to visit
+                result = alpha
+        }</span>
+        <span class="cov8" title="1">if result &gt; unvisitedNodes.Len() </span><span class="cov8" title="1">{
+                result = unvisitedNodes.Len()
+        }</span>
+        <span class="cov8" title="1">return result</span>
+}
+
+// postIterationProcessing does all the things that is required after an iteration of contacting
+// nodes is completed in NodeLookup (or DataLookup). This includes:
+//                 moving visited nodes from the unvisited collection to the visited collection
+//                 calling addNewNodes
+//      calling and returning the result of doWideSearch
+func postIterationProcessing(visited *ContactCandidates, unvisited *ContactCandidates,
+        newRoundNodes *[]Contact, searchRange int) bool <span class="cov8" title="1">{
+        if unvisited.Len() &gt; 0 </span><span class="cov8" title="1">{
+                visited.Append(unvisited.contacts[:searchRange])
+                visited.Sort()
+
+                wideSearch := doWideSearch(newRoundNodes, visited.contacts[0])
+
+                unvisited.contacts = unvisited.contacts[searchRange:]
+                addNewNodes(visited, unvisited, *newRoundNodes)
+                return wideSearch
+        }</span>
+        <span class="cov0" title="0">return false</span>
+}</pre>
+		
+		<pre class="file" id="file6" style="display: none">package main
+
+const k = 20
+const alpha = 3
+
+// RoutingTable definition
+// keeps a reference contact of me and an array of buckets
+type RoutingTable struct {
+        me      Contact
+        buckets [ID_LEN * 8]*bucket
+}
+
+// NewRoutingTable returns a new instance of a RoutingTable
+func NewRoutingTable(me Contact) *RoutingTable <span class="cov8" title="1">{
+        routingTable := &amp;RoutingTable{}
+        for i := 0; i &lt; ID_LEN*8; i++ </span><span class="cov8" title="1">{
+                routingTable.buckets[i] = newBucket()
+        }</span>
+        <span class="cov8" title="1">routingTable.me = me
+        return routingTable</span>
+}
+
+// AddContact add a new contact to the correct Bucket
+func (routingTable *RoutingTable) AddContact(contact Contact) <span class="cov8" title="1">{
+        bucketIndex := routingTable.getBucketIndex(contact.ID)
+        bucket := routingTable.buckets[bucketIndex]
+        bucket.AddContact(contact)
+}</span>
+
+// FindClosestContacts finds the count closest Contacts to the target in the RoutingTable
+func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count int) []Contact <span class="cov8" title="1">{
+        var candidates ContactCandidates
+        bucketIndex := routingTable.getBucketIndex(target)
+        bucket := routingTable.buckets[bucketIndex]
+
+        candidates.Append(bucket.GetContactsAndCalcDistances(target))
+
+        for i := 1; (bucketIndex-i &gt;= 0 || bucketIndex+i &lt; ID_LEN*8) &amp;&amp; candidates.Len() &lt; count; i++ </span><span class="cov8" title="1">{
+                if bucketIndex-i &gt;= 0 </span><span class="cov8" title="1">{
+                        bucket = routingTable.buckets[bucketIndex-i]
+                        candidates.Append(bucket.GetContactsAndCalcDistances(target))
+                }</span>
+                <span class="cov8" title="1">if bucketIndex+i &lt; ID_LEN*8 </span><span class="cov8" title="1">{
+                        bucket = routingTable.buckets[bucketIndex+i]
+                        candidates.Append(bucket.GetContactsAndCalcDistances(target))
+                }</span>
+        }
+
+        <span class="cov8" title="1">candidates.Sort()
+
+        if count &gt; candidates.Len() </span><span class="cov8" title="1">{
+                count = candidates.Len()
+        }</span>
+
+        <span class="cov8" title="1">return candidates.GetContacts(count)</span>
+}
+
+// getBucketIndex get the correct Bucket index for the KademliaID
+func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int <span class="cov8" title="1">{
+        distance := id.CalcDistance(routingTable.me.ID)
+        for i := 0; i &lt; ID_LEN; i++ </span><span class="cov8" title="1">{
+                for j := 0; j &lt; 8; j++ </span><span class="cov8" title="1">{
+                        if (distance[i]&gt;&gt;uint8(7-j))&amp;0x1 != 0 </span><span class="cov8" title="1">{
+                                return i*8 + j
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">return ID_LEN*8 - 1</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
