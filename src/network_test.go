@@ -148,7 +148,8 @@ func TestVisitedKClosest(t *testing.T) {
 	k := 2
 	var v, u ContactCandidates
 
-	// Case 1: All k contacts are the closest. Should return true.
+	// Case 1: Have visited at least k contacts and all k contacts are the closest.
+	// Should return true.
 	v.AppendContact(NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "0"))
 	v.AppendContact(NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "0"))
 	v.contacts[0].distance = NewKademliaID("0000000000000000000000000000000000000000")
@@ -165,7 +166,8 @@ func TestVisitedKClosest(t *testing.T) {
 
 	v = ContactCandidates{}
 	u = ContactCandidates{}
-	// Case 2: All k except 1 contact is the closest. Should return false
+	// Case 2: Have visited at least k contacts and all k EXCEPT 1 contact is the closest.
+	// Should return false
 	v.AppendContact(NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "0"))
 	v.AppendContact(NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "0"))
 	v.contacts[0].distance = NewKademliaID("0000000000000000000000000000000000000000")
@@ -180,14 +182,26 @@ func TestVisitedKClosest(t *testing.T) {
 		t.Errorf("TestVisitedKClosest error case 2")
 	}
 
-	// Case 3: We have not visited k closest but no more unvisited to visit. Should be true
 	v = ContactCandidates{}
 	u = ContactCandidates{}
-	// Case 2: All k except 1 contact is the closest. Should return false
+	// Case 3: We have not visited k closest but no more unvisited to visit. Should return true
 	v.AppendContact(NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "0"))
 	v.contacts[0].distance = NewKademliaID("0000000000000000000000000000000000000000")
 
 	if !visitedKClosest(&u, &v, k) {
+		t.Errorf("TestVisitedKClosest error case 3")
+	}
+
+	v = ContactCandidates{}
+	u = ContactCandidates{}
+	// Case 4: We have not visited k nodes yet, but there are more to visit. Should return false
+	v.AppendContact(NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "0"))
+	v.contacts[0].distance = NewKademliaID("0000000000000000000000000000000000000000")
+
+	u.AppendContact(NewContact(NewKademliaID("0000000000000000000000000000000000000001"), "0"))
+	u.contacts[0].distance = NewKademliaID("0000000000000000000000000000000000000000")
+
+	if visitedKClosest(&u, &v, k) {
 		t.Errorf("TestVisitedKClosest error case 3")
 	}
 }
@@ -360,6 +374,16 @@ func TestPostIterationProcessing(t *testing.T) {
 	// all should be moved
 	postIterationProcessing(&v, &u, &n, s)
 	if !v.Contains(&c1) || !v.Contains(&c2) || !v.Contains(&c3) || u.Contains(&c1) || u.Contains(&c2) || u.Contains(&c3){
+		t.Errorf("postIterationProcessing did not move contacts properly from " +
+			"unvisited to visited when searchRange = %d", s)
+	}
+
+	v = ContactCandidates{}
+	u = ContactCandidates{}
+	s = 100
+	// all should be moved
+	postIterationProcessing(&v, &u, &n, s)
+	if v.Len() > 0 || u.Len() > 0 {
 		t.Errorf("postIterationProcessing did not move contacts properly from " +
 			"unvisited to visited when searchRange = %d", s)
 	}
