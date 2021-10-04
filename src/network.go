@@ -71,7 +71,7 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, ad
 
 	requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
 	targetID := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
-	bucket := network.localNode.routingTable.FindClosestContacts(targetID, k + 1)
+	bucket := network.localNode.LookupContact(targetID, k + 1)
 	bucket = removeSelfOrTail(requesterID, bucket, len(bucket) == k + 1)
 
 	fmt.Println("Received a FIND_NODE request from node", requesterID,
@@ -264,7 +264,7 @@ func (network *Network) Ping(contact *Contact) bool {
 // will then receive these messages and search through their own routing table
 func (network *Network) NodeLookup(lookupID *KademliaID) []Contact {
 	// Get the initial k closest nodes from the current node
-	initNodes := network.localNode.routingTable.FindClosestContacts(lookupID, k)
+	initNodes := network.localNode.LookupContact(lookupID, k)
 	if len(initNodes) == 0 {
 		return []Contact{}
 	}
@@ -310,7 +310,7 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 		return localData, []Contact{network.localNode.routingTable.me}
 	}
 
-	initNodes := network.localNode.routingTable.FindClosestContacts(hash, k)
+	initNodes := network.localNode.LookupContact(hash, k)
 	if len(initNodes) == 0 {
 		return nil, []Contact{}
 	}

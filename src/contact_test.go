@@ -286,7 +286,7 @@ func TestContactCandidates_Remove(t *testing.T) {
 			length := candidates.Len()
 
 			if length != tt.wants {
-				t.Errorf("Contains() = %v, want %v", length, tt.wants)
+				t.Errorf("Remove() = %v, want %v", length, tt.wants)
 			}
 
 		})

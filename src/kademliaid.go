@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	"math/rand"
 	"net"
 )
 
@@ -55,16 +54,6 @@ func NewKademliaIDFromIP(ip *net.IP) *KademliaID {
 		newKademliaID[i] = decoded[i]
 	}
 
-	return &newKademliaID
-}
-
-// NewRandomKademliaID returns a new instance of a random KademliaID,
-// change this to a better version if you like
-func NewRandomKademliaID() *KademliaID {
-	newKademliaID := KademliaID{}
-	for i := 0; i < ID_LEN; i++ {
-		newKademliaID[i] = uint8(rand.Intn(256))
-	}
 	return &newKademliaID
 }
 

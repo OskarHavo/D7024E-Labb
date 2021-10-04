@@ -13,9 +13,9 @@ func NewNode(ID Contact) Node {
 	return Node{make(map[KademliaID][]byte), NewRoutingTable(ID)}
 }
 
-// William skulle fixa
-func (kademlia *Node) LookupContact(target *Contact) {
-	// TODO - Vad ska den här göra? Behövs den?
+// Local lookup of the size closest contacts to some target kademlia ID
+func (kademlia *Node) LookupContact(target *KademliaID, size int) []Contact {
+	return kademlia.routingTable.FindClosestContacts(target, size)
 }
 
 // Lookup data
