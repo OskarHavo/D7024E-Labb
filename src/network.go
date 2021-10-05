@@ -55,16 +55,18 @@ const KAD_PORT = "5001"
 
 type Network struct {
 	localNode Node
+	ms_service Message_service
 }
 
 func NewNetwork(ip *net.IP) Network {
-	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String()))}
+	// TODO Enable fake connection
+	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String())), Message_service{use_fake: false}}
 }
 
 // Handles FIND_NODE  requests (initiated by findNodeRPC) from other nodes by sending back a bucket of the k closest
 // nodes to some kademlia ID.
 // msgType is the type of message (message description) that will be sent back to the requester.
-func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, address *net.UDPAddr, msgType byte) {
+func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, address *net.UDPAddr, msgType byte) {
 	// Message format:
 	// REC: [MSG TYPE, REQUESTER ID, TARGET ID]
 	// SEND: [MSG TYPE, BUCKET SIZE, BUCKET:[ID, IP]]
@@ -108,7 +110,7 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *net.UDPConn, ad
 }
 
 // unpackMessage handles all kademlia requests from other nodes.
-func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, address *net.UDPAddr) {
+func (network *Network) unpackMessage(msg *[]byte, connection *Connection, address *net.UDPAddr) {
 	switch messageType := (*msg)[0]; messageType {
 	case PING:
 		requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
@@ -164,7 +166,7 @@ func (network *Network) unpackMessage(msg *[]byte, connection *net.UDPConn, addr
 // (see kickTheBucket)
 func (network *Network) Listen() {
 		for {
-			conn, err := net.ListenUDP("udp", &net.UDPAddr{
+			conn, err := network.ms_service.ListenUDP("udp", &net.UDPAddr{
 				Port:5001,
 			})
 			if err == nil {
@@ -183,7 +185,7 @@ func (network *Network) Listen() {
 					//fmt.Println("Attempting to kick the bucket")
 					network.kickTheBucket(&contact)
 
-					network.unpackMessage(&msg,conn,addr)
+					network.unpackMessage(&msg,&conn,addr)
 				}
 
 			} else {
@@ -211,8 +213,8 @@ func (network *Network) Ping(contact *Contact) bool {
 	service := hostName + ":" + KAD_PORT
 
 	start := time.Now()
-	remoteAddr, err := net.ResolveUDPAddr("udp",service)
-	conn, err := net.DialUDP("udp", nil, remoteAddr)
+	remoteAddr, err := network.ms_service.ResolveUDPAddr("udp",service)
+	conn, err := network.ms_service.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
 		return false
@@ -379,9 +381,9 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) ([]Contact, bool) {
 	hostName := contact.Address
 	service := hostName + ":" + KAD_PORT
-	remoteAddr, err := net.ResolveUDPAddr("udp",service)
+	remoteAddr, err := network.ms_service.ResolveUDPAddr("udp",service)
 
-	conn, err := net.DialUDP("udp", nil, remoteAddr)
+	conn, err := network.ms_service.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findNodeRPC to ", contact.ID.String(),"   ", contact.Address)
 		return nil,false
@@ -424,9 +426,9 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) ([]C
 func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte, []Contact, bool) {
 	hostName := contact.Address
 	service := hostName + ":" + KAD_PORT
-	remoteAddr, err := net.ResolveUDPAddr("udp",service)
+	remoteAddr, err := network.ms_service.ResolveUDPAddr("udp",service)
 
-	conn, err := net.DialUDP("udp", nil, remoteAddr)
+	conn, err := network.ms_service.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		fmt.Println("Could not establish connection when sending findDataRPC to " + contact.ID.String())
 		return nil, nil, false
@@ -476,8 +478,8 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []byte) {
 	hostName := contact.Address
 	service := hostName + ":" + KAD_PORT
-	remoteAddr, err := net.ResolveUDPAddr("udp",service)
-	conn, err := net.DialUDP("udp", nil, remoteAddr)
+	remoteAddr, err := network.ms_service.ResolveUDPAddr("udp",service)
+	conn, err := network.ms_service.DialUDP("udp", nil, remoteAddr)
 
 	if err != nil {
 		fmt.Println("Could not establish connection when sending storeDataRPC to " + contact.ID.String())
