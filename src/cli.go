@@ -27,6 +27,7 @@ func main() {
 	fmt.Println("Started node with ID " + net.localNode.routingTable.me.ID.String())
 	fmt.Println("Node has IP address " + IP.String())
 	go net.Listen()
+	//go net.HTTPlisten()
 
 	for {
 		fmt.Printf("\n Enter a command: ")
