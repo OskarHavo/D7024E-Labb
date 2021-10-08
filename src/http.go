@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	"io/ioutil"
@@ -8,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 )
-// Printas ut i http://localhost:8000/
+// Printas ut i http://localhost:3000/
 
 const URLprefix = "/objects/"
 
@@ -19,22 +20,25 @@ func (network *Network) HTTPhandler(w http.ResponseWriter, r *http.Request){
 		body,error := ioutil.ReadAll(r.Body) // Read Request
 		defer r.Body.Close() // Always CLOSE.
 
-		cleanBody := removeQuotationMarks(string(body)) // Turns " "test" " into "  test   "
-
 		// Check for errors or if body is empty.
-		if error != nil || string(cleanBody) == "" {
+		if error != nil || string(body) == "" {
 			http.Error(w, "ERROR", http.StatusBadRequest)
 			fmt.Println("Error when POST")
 		}  else{
 			// Same as in Cli.go Store
-			hashedFileString := NewKademliaIDFromData(cleanBody)
+			hashedFileString := NewKademliaIDFromData(string(body))
 			network.Store([]byte(body),hashedFileString)
-
-			// Done as per the lab instructions.
 			hashSuffix := hashedFileString.String()
+
+			message := map[string]string{ hashSuffix: string(body)} // JSON DATA FORMAT
+			jsonValue,_ := json.Marshal(message)
+
 			w.Header().Set("Location", URLprefix+hashSuffix)
-			w.WriteHeader(http.StatusCreated)	// Status 201 as detailed.
-			w.Write(body)
+			w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+			w.WriteHeader(http.StatusCreated)	// Status 201 as detailed
+
+			w.Write(jsonValue)
+			fmt.Println("HTTP Data Written. Hash = ", hashSuffix )
 		}
 	case "GET":
 		// Checks if there is something after the prefix.  /objects/XXXXXXXXXXXXXX
@@ -53,6 +57,7 @@ func (network *Network) HTTPhandler(w http.ResponseWriter, r *http.Request){
 					// If data is not nil, send OK status and write.
 					w.WriteHeader(http.StatusOK)
 					w.Write(data)
+					fmt.Println("HTTP Data Read. Input was = ", string(data) )
 				} else if len(nodes) > 0{
 					http.Error(w, "ERROR", http.StatusNotFound)
 					fmt.Println("Error when GET - DataLookUP (Length)")
@@ -66,19 +71,10 @@ func (network *Network) HTTPhandler(w http.ResponseWriter, r *http.Request){
 	}
 }
 
-// Could need some work.
-
 // Enables listening to HTTP
 func (network *Network) HTTPlisten() {
-	// https://github.com/gorilla/mux
-	filePath := "/objects/" // Specified in lab.
 	r := mux.NewRouter()
-	r.HandleFunc(filePath, network.HTTPhandler)
-	log.Fatal(http.ListenAndServe(":8000", r))
-}
-// Remove first and last char of string (Quotation Marks)
-func removeQuotationMarks(str string) string {
-	stringStart := 1
-	stringEnd := len(str)-1
-	return str[stringStart : stringEnd]
-}
+	r.HandleFunc("/objects/{hashvalue}", network.HTTPhandler).Methods("GET")
+	r.HandleFunc("/objects", network.HTTPhandler).Methods("POST")
+	log.Fatal(http.ListenAndServe(":3000", r))
+ }
