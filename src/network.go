@@ -35,7 +35,7 @@ const (
 	PING_ACK byte = iota
 
 	STORE byte = iota
-	STORE_ACK byte = iota
+	//STORE_ACK byte = iota
 
 	FIND_NODE byte = iota
 	FIND_NODE_ACK byte = iota
@@ -43,6 +43,8 @@ const (
 	FIND_DATA byte = iota
 	FIND_DATA_ACK_SUCCESS byte = iota
 	FIND_DATA_ACK_FAIL byte = iota
+
+	REFRESH_DATA_TTL = iota
 )
 
 const MAX_PACKET_SIZE = 1024
@@ -157,6 +159,16 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
 		fmt.Println("Received a STORE request from node", requesterID.String())
 
 		network.localNode.Store(data, hash)
+		return
+	case REFRESH_DATA_TTL:
+		// Message format:
+		// SEND: [MSG TYPE, REQUESTER ID, REFRESH HASH]
+		// REC: nothing
+		requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
+		hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
+		fmt.Println("Received a REFRESH request from node", requesterID.String())
+
+		network.localNode.Refresh(hash)
 		return
 	}
 }
@@ -374,6 +386,7 @@ func (network *Network) Store(data []byte, hash *KademliaID) {
 			go network.storeDataRPC(contact, hash, data)
 		}
 	}
+	network.localNode.RememberContacts(hash, nodes)
 }
 
 // findNodeRPC sends a FIND_NODE request to some contact with some targetID.
