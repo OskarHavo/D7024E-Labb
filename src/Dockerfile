@@ -19,6 +19,7 @@ WORKDIR /app
 COPY go.mod ./
 
 RUN go mod download
+RUN go get -d github.com/gorilla/mux
 
 COPY *.go ./
 
