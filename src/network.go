@@ -210,7 +210,6 @@ func (network *Network) Listen() {
 // Join a kademlia network via a known nodes IP and ID. The ID is probably the SHA-1 hash of its IP.
 func (network *Network) Join(id *KademliaID, address string) {
 	knownNode := NewContact(id, address)
-	//network.localNode.routingTable.AddContact(knownNode)
 
 	if network.Ping(&knownNode) { // If Ping is successful
 		fmt.Println("Joined network node " + knownNode.Address + " successfully!")
@@ -424,7 +423,6 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) ([]C
 			return nil,false
 		}
 
-		// TODO: This can be put into a function and reused in findDataRPC
 		kClosestReply := handleBucketReply(&reply)
 
 		network.kickTheBucket(contact)
@@ -465,7 +463,6 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 			return nil, nil, false
 		}
 
-		// TODO This updates the routing table with the node we just queried.
 		network.kickTheBucket(contact)
 
 		if reply[0] == FIND_DATA_ACK_FAIL {

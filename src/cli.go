@@ -26,8 +26,10 @@ func main() {
 	net := NewNetwork(&IP)
 	fmt.Println("Started node with ID " + net.localNode.routingTable.me.ID.String())
 	fmt.Println("Node has IP address " + IP.String())
-	//go net.Listen()
+	go net.Listen()
 	go net.HTTPlisten()
+	go net.Remember()
+	go net.localNode.UpdateTTL()
 
 	for {
 		fmt.Printf("\n Enter a command: ")
@@ -87,7 +89,7 @@ func handleDualInput(command string, value string, network *Network) string {
 		outputString := ("NodeID: " + outputNodeID + "  Content: " + outputContent)
 		return outputString
 	case "forget":
-		// To-do
+		network.localNode.Forget(NewKademliaID(value))
 		return ""
 	default:
 		return "INVALID COMMAND, TYPE HELP"
