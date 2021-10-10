@@ -83,8 +83,14 @@ func (ms_service *Message_service) DialUDP(network string, laddr *net.UDPAddr, r
 			//fmt.Println(home_addr, "	: Established connection at dialUDP to ",send_ID)
 			global_map[home_addr] = make(chan string)
 			comm_mutex.Unlock()
-			global_map[send_ID] <- home_addr
-			return Connection{conn: nil,use_fake: ms_service.use_fake,receive_channel: global_map[home_addr],receive_IP: home_addr,send_channel: global_map[send_ID],send_IP: send_ID},nil
+
+			select {
+			case global_map[send_ID] <- home_addr:
+				return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: global_map[home_addr], receive_IP: home_addr, send_channel: global_map[send_ID], send_IP: send_ID}, nil
+			case <-time.After(1 * time.Second):
+				return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: nil, receive_IP: home_addr, send_channel: nil, send_IP: send_ID}, errors.New("failed to dial udp")
+
+			}
 		}
 	}
 }
@@ -103,9 +109,14 @@ func (connection *Connection) ReadFromUDP(msg []byte) (n int, addr *net.UDPAddr,
 	} else {
 		// TODO Add read timeout
 		//fmt.Println(connection.receive_IP, "	: Starting to read from UDP channel ")
-		copy(msg, []byte(<- connection.receive_channel))
-		//fmt.Println(connection.receive_IP, "	: Received UDP packet. Packet size: ", len(msg))
-		return len(msg),&net.UDPAddr{IP: net.ParseIP(connection.send_IP)},nil
+
+		select {
+		case data := <- connection.receive_channel:
+			copy(msg, []byte(data))
+			return len(msg),&net.UDPAddr{IP: net.ParseIP(connection.send_IP)},nil
+			case <- time.After(1*time.Second):
+				return 0,&net.UDPAddr{IP: net.ParseIP(connection.send_IP)},errors.New("Could not read from UDP")
+		}
 	}
 }
 
@@ -114,9 +125,12 @@ func (connection *Connection) WriteToUDP(b []byte, addr *net.UDPAddr) (int, erro
 		return connection.conn.WriteToUDP(b,addr)
 	} else {
 		//fmt.Println(connection.receive_IP, "	: Starting to write to UDP channel", connection.send_IP)
-		connection.send_channel <- string(b)
-		//fmt.Println(connection.receive_IP, "	: Wrote ", len(b)," bytes to UDP successfully")
-		return len(b), nil
+		select {
+		case connection.send_channel <- string(b):
+			return len(b),nil
+		case <- time.After(1*time.Second):
+			return 0, errors.New("Could not write to UDP")
+		}
 	}
 }
 

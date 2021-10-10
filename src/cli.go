@@ -46,7 +46,7 @@ func parseInput(input string, net *Network) string {
 	stringinput := strings.Fields(input) //Splits the text into an array with each entry being a word
 
 	if len(stringinput) == 0{
-		fmt.Println("Blank input. Try again.")
+		return "Blank input. Try again.\n"
 	}
 	// Single Input
 	if len(stringinput) > 0 {

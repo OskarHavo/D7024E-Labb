@@ -400,7 +400,6 @@ func TestNetwork_Listen(t *testing.T) {
 		name   string
 		fields fields
 	}{
-		{"", fields{&net.IP{},NewMessageService(false,&net.UDPAddr{})}},
 		{"", fields{&net.IP{},NewMessageService(true,&net.UDPAddr{})}},
 	}
 	for _, tt := range tests {
@@ -424,8 +423,6 @@ func TestNetwork_Listen(t *testing.T) {
 }
 
 func TestNetwork_Join(t *testing.T) {
-
-
 	ip1 := net.ParseIP("0.0.0.0")
 	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
 	ip2 := net.ParseIP("0.0.0.1")
@@ -557,6 +554,8 @@ func TestNetwork_NodeLookup(t *testing.T) {
 	<- net1_chan
 	<- net2_chan
 	<- net3_chan
+
+	global_map = make(map[string] chan string)
 }
 
 func TestNetwork_DataLookup(t *testing.T) {
@@ -626,4 +625,41 @@ func TestNetwork_DataLookup(t *testing.T) {
 	<- net2_chan
 	<- net3_chan
 
+	global_map = make(map[string] chan string)
+}
+
+func TestNetwork_unpackMessage(t *testing.T) {
+	ip1 := net.ParseIP("0.0.0.0")
+	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
+	ip2 := net.ParseIP("0.0.0.1")
+	ms2 := NewMessageService(true,&net.UDPAddr{IP: ip2})
+
+	net1 := NewNetwork(&ip1,ms1)
+	net2 := NewNetwork(&ip2,ms2)
+
+	net1_chan := make(chan bool)
+	go func() {
+		net1.Listen()
+		net1_chan <- true
+	}()
+	net2_chan := make(chan bool)
+	go func() {
+		net2.Listen()
+		net2_chan <- true
+	}()
+	time.Sleep(50*time.Millisecond)
+	error := net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+
+	if error != nil {
+		t.Errorf("unpackMessage() = %v, want %v", "Failed to join", "Succesful join")
+	}
+
+	net2.shutdown()
+	<-net2_chan
+
+	
+
+	net1.shutdown()
+	<-net1_chan
+	global_map = make(map[string] chan string)
 }

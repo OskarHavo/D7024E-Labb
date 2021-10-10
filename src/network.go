@@ -114,7 +114,7 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, add
 }
 
 // unpackMessage handles all kademlia requests from other nodes.
-func (network *Network) unpackMessage(msg *[]byte, connection *Connection, address *net.UDPAddr) {
+func (network *Network) unpackMessage(msg *[]byte, connection *Connection, address *net.UDPAddr) error {
 	switch messageType := (*msg)[0]; messageType {
 	case PING:
 		requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
@@ -126,11 +126,12 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
 		_,err := (*connection).WriteToUDP(reply, address)
 		if err != nil {
 			fmt.Println("There was an error when replying to a PING request.", err.Error())
+			return err
 		}
-		return
+		return err
 	case FIND_NODE:
 		network.sendFindNodeAck(msg, connection, address, FIND_NODE_ACK)
-		return
+		return nil
 	case FIND_DATA:
 		// Message format:
 		// REC:  [MSG TYPE, REQUESTER ID, HASH]
@@ -147,10 +148,11 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
 			if err != nil {
 				fmt.Println("There was an error when replying to a FIND_DATA request.", err.Error())
 			}
+			return err
 		} else {
 			network.sendFindNodeAck(msg, connection, address, FIND_DATA_ACK_FAIL)
 		}
-		return
+		return nil
 	case STORE:
 		// Message format:
 		// REC: [MSG TYPE, REQUESTER ID, HASH, DATA...]
@@ -161,7 +163,7 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
 		fmt.Println("Received a STORE request from node", requesterID.String())
 
 		network.localNode.Store(data, hash)
-		return
+		return nil
 	case REFRESH_DATA_TTL:
 		// Message format:
 		// SEND: [MSG TYPE, REQUESTER ID, REFRESH HASH]
@@ -171,8 +173,9 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
 		fmt.Println("Received a REFRESH request from node", requesterID.String())
 
 		network.localNode.Refresh(hash)
-		return
+		return nil
 	}
+	return errors.New("received unknown request")
 }
 
 // Listen listens for incoming requests. Once a message is received it is directed to unpackMessage.

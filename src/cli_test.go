@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 )
 
 // Files must be xxx_test.go
@@ -76,6 +77,15 @@ func TestParseInput(t *testing.T) {
 	}
 	net:= NewNetwork(&testIP, NewMessageService(false,nil))
 
+	// Test no input
+	output_0 := parseInput("", nil)
+	groundTruth_0 := "Blank input. Try again.\n"
+	if output_0 != groundTruth_0 {
+		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_0, groundTruth_0)
+	} else {
+		fmt.Println("TestParseInput - Test No Input = Passed") // -v must be added to go test for prints to appear.
+	}
+
 	// Test Single Input
 	output_1 := parseInput("help", nil)
 	groundTruth_1 := "Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
@@ -107,10 +117,55 @@ func TestHandleDualInput(t *testing.T) {
 			}
 		}
 	}
-	net:= NewNetwork(&testIP,NewMessageService(false,nil))
+	network:= NewNetwork(&testIP,NewMessageService(false,nil))
+	// Test join
+	{
+		ip1 := net.ParseIP("0.0.0.0")
+		ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
+		ip2 := net.ParseIP("0.0.0.1")
+		ms2 := NewMessageService(true, &net.UDPAddr{IP: ip2})
+
+		net1 := NewNetwork(&ip1, ms1)
+		net2 := NewNetwork(&ip2, ms2)
+
+		net1_chan := make(chan bool)
+		go func() {
+			net1.Listen()
+			net1_chan <- true
+		}()
+		time.Sleep(50*time.Millisecond)
+		//net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+		output := handleDualInput("join","0.0.0.0",&net2)
+		groundTruth := ""
+		if output != groundTruth {
+			t.Errorf("Answer was incorrect, got: %s, want: %s.", output, groundTruth)
+		} else {
+			fmt.Println("TestHandleDualInput - Test join = Passed") // -v must be added to go test for prints to appear.
+		}
+
+		net1.shutdown()
+		<- net1_chan
+	}
+	// Test join with error
+	{
+		ip2 := net.ParseIP("0.0.0.1")
+		ms2 := NewMessageService(true, &net.UDPAddr{IP: ip2})
+
+		net2 := NewNetwork(&ip2, ms2)
+
+		//net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+		output := handleDualInput("join","0.0.0.0",&net2)
+		groundTruth := "could not join network node"
+		if output != groundTruth {
+			t.Errorf("Answer was incorrect, got: %s, want: %s.", output, groundTruth)
+		} else {
+			fmt.Println("TestHandleDualInput - Test join = Passed") // -v must be added to go test for prints to appear.
+		}
+
+	}
 
 	// Test Put
-	output_1 := handleDualInput("put", "test", &net)
+	output_1 := handleDualInput("put", "test", &network)
 	groundTruth_1 := "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
 	if output_1 != groundTruth_1 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_1, groundTruth_1)
@@ -118,7 +173,7 @@ func TestHandleDualInput(t *testing.T) {
 		fmt.Println("TestHandleDualInput - Test Put = Passed") // -v must be added to go test for prints to appear.
 	}
 	// Test Default
-	output_2 := handleDualInput("lorem", "ipsum", &net)
+	output_2 := handleDualInput("lorem", "ipsum", &network)
 	groundTruth_2 := "INVALID COMMAND, TYPE HELP"
 	if output_2 != groundTruth_2 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_2, groundTruth_2)
@@ -127,9 +182,9 @@ func TestHandleDualInput(t *testing.T) {
 	}
 	// Test Get
 	inputString := "test"
-	put(inputString, &net)
-	output_3 := handleDualInput("get", NewKademliaIDFromData(inputString).String(), &net)
-	groundTruth_3 := "NodeID: "+ net.localNode.routingTable.me.ID.String() +"  Content: test"
+	put(inputString, &network)
+	output_3 := handleDualInput("get", NewKademliaIDFromData(inputString).String(), &network)
+	groundTruth_3 := "NodeID: "+ network.localNode.routingTable.me.ID.String() +"  Content: test"
 	if output_3 != groundTruth_3 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_3, groundTruth_3)
 	} else {
