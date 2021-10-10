@@ -17,7 +17,7 @@ const URLprefix = "/objects/"
 func (network *Network) HTTPhandler(w http.ResponseWriter, r *http.Request){
 	switch r.Method {
 	case "POST":
-		body,error := ioutil.ReadAll(r.Body) // Read Request
+		body, error := ioutil.ReadAll(r.Body) // Read Request
 		defer r.Body.Close() // Always CLOSE.
 
 		// Check for errors or if body is empty.

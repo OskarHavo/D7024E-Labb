@@ -52,7 +52,7 @@ const MAX_PACKET_SIZE = 1024
 const IP_LEN = 4
 const HEADER_LEN = 1
 const BUCKET_HEADER_LEN = 1
-const TIMEOUT = 500
+const TIMEOUT = 5000
 
 const KAD_PORT = "5001"
 
@@ -186,22 +186,18 @@ func (network *Network) Listen() {
 		})
 		if err == nil {
 			msg := make([]byte, MAX_PACKET_SIZE)
-			conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
 			_, addr, err := conn.ReadFromUDP(msg)
+				if err != nil {
+					fmt.Println("Could not read incoming message")
+					fmt.Println(err.Error())
+				} else {
+					ID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
-			if err != nil {
-				fmt.Println("Could not read incoming message")
-			} else {
-				ID := (*KademliaID)(msg[1 : 1+ID_LEN])
+					contact := NewContact(ID,addr.IP.To4().String())
+					network.kickTheBucket(&contact)
 
-				//fmt.Println("Attempting to create a contact")
-				contact := NewContact(ID, addr.IP.To4().String())
-				//fmt.Println("Attempting to kick the bucket")
-				network.kickTheBucket(&contact)
-
-				network.unpackMessage(&msg, &conn, addr)
-			}
-
+					network.unpackMessage(&msg,&conn,addr)
+				}
 		} else {
 			fmt.Println("Could not read from incoming connection.", err.Error())
 		}
@@ -236,6 +232,7 @@ func (network *Network) Ping(contact *Contact) bool {
 	conn, err := network.ms_service.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
 		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
+		fmt.Println(err.Error())
 		return false
 	} else {
 		fmt.Println("Connection established to " + remoteAddr.String() + "!")
@@ -539,6 +536,13 @@ func (network *Network) kickTheBucket(contact *Contact) {
 	} else {
 		bucket.AddContact(*contact)
 	}
+
+	// LOGGING, TEMP
+	fmt.Println("Routing table state after kicking the bucket:")
+	contacts := network.localNode.routingTable.FindClosestContacts(network.localNode.routingTable.me.ID, 9999)
+	for _, c := range contacts {
+		fmt.Println("<" + c.ID.String() + ", " + c.Address + ">")
+	}
 }
 
 // We don't want to send back the requester its own ID so that it has itself in its own bucket.
@@ -571,11 +575,9 @@ func addNewNodes(visited *ContactCandidates, unvisited *ContactCandidates,
 		// Check for duplicates among newNodes
 		if !allOld.Contains(&newNodes[i]) && !toBeAdded.Contains(&newNodes[i]) {
 			toBeAdded.AppendContact(newNodes[i])
-			//toBeAdded.Sort()
 		}
 	}
 	unvisited.Append(toBeAdded.contacts)
-	//unvisited.Sort()
 }
 
 // visitedKClosest checks if the NodeLookup (and DataLookup) algorithm is finished by

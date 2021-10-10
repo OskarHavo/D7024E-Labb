@@ -35,7 +35,7 @@ var global_map map[string] chan string = make(map[string] chan string)
 func (ms_service *Message_service) ListenUDP(udp string, addr *net.UDPAddr) (Connection, error) {
 	if !ms_service.use_fake {
 		conn, err := net.ListenUDP(udp,addr)
-		return Connection{conn: conn,use_fake: ms_service.use_fake}, err
+		return Connection{conn: conn, use_fake: ms_service.use_fake}, err
 	} else {
 		receive_ID := ms_service.home_addr.IP.To4().String() + ":5001"
 		// TODO
