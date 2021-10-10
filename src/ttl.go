@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	TIME_TO_LIVE = 120 * 1000
-	REMEMBER_UPDATE_FREQ_MILLISEC = 15 * 1000
+	TIME_TO_LIVE = 30 * 1000
+	REMEMBER_UPDATE_FREQ = 5 * 1000
 )
 
 // UpdateTTL runs an infinite while loop that updates internal ttl of all stored data objects
@@ -19,10 +19,12 @@ func (kademlia *Node) UpdateTTL() {
 		// For each
 		for dataHash, timeToLive := range kademlia.ttl {
 			delta := time.Since(lastUpdated)
-			timeToLive -= int(delta.Milliseconds())
+			kademlia.ttl[dataHash] -= int(delta.Milliseconds())
+			//fmt.Println("TTL:", kademlia.ttl[dataHash])
 
 			if timeToLive <= 0 {
 				kademlia.Delete(&dataHash)
+				fmt.Println("Deleting hash", dataHash.String())
 			}
 		}
 		lastUpdated = time.Now()
@@ -35,7 +37,7 @@ func (kademlia *Node) UpdateTTL() {
 // associated with some data that has been added via the put command (see cli.go)
 // Runs local Refresh directly if one of the contacts are this node
 func (network *Network) Remember() {
-	if REMEMBER_UPDATE_FREQ_MILLISEC >= TIME_TO_LIVE {
+	if REMEMBER_UPDATE_FREQ >= TIME_TO_LIVE {
 		fmt.Println("ERROR!  Update frequency of ttl refreshing is lower than the " +
 			"system wide TTL parameter. No stored data will live for long ...")
 	}
@@ -46,13 +48,15 @@ func (network *Network) Remember() {
 			for _, c := range contacts {
 				if c.ID.Equals(network.localNode.routingTable.me.ID) {
 					// Invoke local refresh directly, no reason to send RPCs to self
+					fmt.Println("Sending refresh to self")
 					network.localNode.Refresh(&dataHash)
 				} else {
+					fmt.Println("Sending refresh msg to", c.ID.String())
 					network.refreshRPC(c, &dataHash)
 				}
 			}
 		}
-		time.Sleep(time.Duration(REMEMBER_UPDATE_FREQ_MILLISEC) * time.Millisecond)
+		time.Sleep(time.Duration(REMEMBER_UPDATE_FREQ) * time.Millisecond)
 	}
 }
 

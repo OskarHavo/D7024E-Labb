@@ -94,7 +94,7 @@ func handleDualInput(command string, value string, network *Network) string {
 		return outputString
 	case "forget":
 		network.localNode.Forget(NewKademliaID(value))
-		return ""
+		return "Forgot data with hash: " + value
 	default:
 		return "INVALID COMMAND, TYPE HELP"
 	}

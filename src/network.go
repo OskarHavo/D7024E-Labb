@@ -210,7 +210,7 @@ func (network *Network) shutdown() {
 }
 
 // Join a kademlia network via a known nodes IP and ID. The ID is probably the SHA-1 hash of its IP.
-func (network *Network) Join(id *KademliaID, address string) error{
+func (network *Network) Join(id *KademliaID, address string) error {
 	knownNode := NewContact(id, address)
 
 	if network.Ping(&knownNode) { // If Ping is successful
