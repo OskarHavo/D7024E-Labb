@@ -2,10 +2,10 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -44,19 +44,25 @@ func (ms_service *Message_service) ListenUDP(udp string, addr *net.UDPAddr) (Con
 			global_map[receive_ID] = make(chan string)
 		}
 		comm_mutex.Unlock()
-		fmt.Println(receive_ID,"	: Listening to UDP")
+		//fmt.Println(receive_ID,"	: Listening to UDP")
 		select {
 		case s := <-global_map[receive_ID]:
-			fmt.Println(receive_ID,"	: Received connection from ", s)
+			//fmt.Println(receive_ID,"	: Received connection from ", s)
 			return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: global_map[receive_ID],receive_IP: receive_ID, send_channel: global_map[s],send_IP: s}, nil
-		case <-time.After(10*time.Second):
+		case <-time.After(1*time.Second):
 			return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: nil}, errors.New("listened, but nobody answered")
 		}
 	}
 }
 
 func (ms_service *Message_service) ResolveUDPAddr(udp string, service string) (*net.UDPAddr, error){
-	return net.ResolveUDPAddr(udp,service)
+	if ms_service.use_fake {
+		serv := strings.Split(service, ":")
+		port,_ := strconv.Atoi(serv[1])
+		return &net.UDPAddr{IP: net.ParseIP(serv[0]),Port: port}, nil
+	} else {
+		return net.ResolveUDPAddr(udp,service)
+	}
 }
 
 func (ms_service *Message_service) DialUDP(network string, laddr *net.UDPAddr, raddr *net.UDPAddr) (Connection, error) {
@@ -66,14 +72,15 @@ func (ms_service *Message_service) DialUDP(network string, laddr *net.UDPAddr, r
 	} else {
 		var port = rand.Intn(1000000)	// This is our temporary return address.
 		home_addr := ms_service.home_addr.IP.To4().String() + ":" + strconv.FormatInt(int64(port), 10)
+		//fmt.Println("-----------------------------", raddr)
 		send_ID := raddr.IP.To4().String() + ":5001"
-		fmt.Println(home_addr, "	: Connecting to UDP address ", send_ID)
+		//fmt.Println(home_addr, "	: Connecting to UDP address ", send_ID)
 		comm_mutex.Lock()
 		if global_map[send_ID] == nil {
 			comm_mutex.Unlock()
 			return Connection{conn: nil,use_fake: ms_service.use_fake}, errors.New("failed to dial udp")
 		} else {
-			fmt.Println(home_addr, "	: Established connection at dialUDP to ",send_ID)
+			//fmt.Println(home_addr, "	: Established connection at dialUDP to ",send_ID)
 			global_map[home_addr] = make(chan string)
 			comm_mutex.Unlock()
 			global_map[send_ID] <- home_addr
@@ -95,9 +102,9 @@ func (connection *Connection) ReadFromUDP(msg []byte) (n int, addr *net.UDPAddr,
 		return connection.conn.ReadFromUDP(msg)
 	} else {
 		// TODO Add read timeout
-		fmt.Println(connection.receive_IP, "	: Starting to read from UDP channel ")
+		//fmt.Println(connection.receive_IP, "	: Starting to read from UDP channel ")
 		copy(msg, []byte(<- connection.receive_channel))
-		fmt.Println(connection.receive_IP, "	: Received UDP packet. Packet size: ", len(msg))
+		//fmt.Println(connection.receive_IP, "	: Received UDP packet. Packet size: ", len(msg))
 		return len(msg),&net.UDPAddr{IP: net.ParseIP(connection.send_IP)},nil
 	}
 }
@@ -106,9 +113,9 @@ func (connection *Connection) WriteToUDP(b []byte, addr *net.UDPAddr) (int, erro
 	if !connection.use_fake {
 		return connection.conn.WriteToUDP(b,addr)
 	} else {
-		fmt.Println(connection.receive_IP, "	: Starting to write to UDP channel", connection.send_IP)
+		//fmt.Println(connection.receive_IP, "	: Starting to write to UDP channel", connection.send_IP)
 		connection.send_channel <- string(b)
-		fmt.Println(connection.receive_IP, "	: Wrote ", len(b)," bytes to UDP successfully")
+		//fmt.Println(connection.receive_IP, "	: Wrote ", len(b)," bytes to UDP successfully")
 		return len(b), nil
 	}
 }

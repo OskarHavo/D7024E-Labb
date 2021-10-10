@@ -74,7 +74,7 @@ func TestParseInput(t *testing.T) {
 			}
 		}
 	}
-	net:= NewNetwork(&testIP)
+	net:= NewNetwork(&testIP, NewMessageService(false,nil))
 
 	// Test Single Input
 	output_1 := parseInput("help", nil)
@@ -107,7 +107,7 @@ func TestHandleDualInput(t *testing.T) {
 			}
 		}
 	}
-	net:= NewNetwork(&testIP)
+	net:= NewNetwork(&testIP,NewMessageService(false,nil))
 
 	// Test Put
 	output_1 := handleDualInput("put", "test", &net)
@@ -128,8 +128,8 @@ func TestHandleDualInput(t *testing.T) {
 	// Test Get
 	inputString := "test"
 	put(inputString, &net)
-	output_3 := handleDualInput("get", "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3", &net)
-	groundTruth_3 := "NodeID: 4e2c52cb52993364aeb5e941e07e2342646ba188  Content: test"
+	output_3 := handleDualInput("get", NewKademliaIDFromData(inputString).String(), &net)
+	groundTruth_3 := "NodeID: "+ net.localNode.routingTable.me.ID.String() +"  Content: test"
 	if output_3 != groundTruth_3 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_3, groundTruth_3)
 	} else {
@@ -149,7 +149,7 @@ func TestPut(t *testing.T) {
 			}
 		}
 	}
-	net:= NewNetwork(&testIP)
+	net:= NewNetwork(&testIP,NewMessageService(false,nil))
 
 	// Test Good Input
 	output_1 := put("testing", &net)
@@ -183,7 +183,7 @@ func TestGet(t *testing.T) {
 			}
 		}
 	}
-	net:= NewNetwork(&testIP)
+	net:= NewNetwork(&testIP,NewMessageService(false,nil))
 
 	// Test Find Valid Input
 	inputString := "test"

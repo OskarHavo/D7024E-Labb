@@ -22,7 +22,7 @@ func TestHTTPhandler(t *testing.T) {
 		}
 	}
 	prefix := "/objects/"
-	net:= NewNetwork(&testIP)
+	net:= NewNetwork(&testIP,NewMessageService(false,nil))
 
 	// POST valid
 	httpRecorder1 := httptest.NewRecorder()

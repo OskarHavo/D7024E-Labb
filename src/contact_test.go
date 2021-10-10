@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"testing"
 )
 
@@ -80,6 +81,34 @@ func TestContact_Less(t *testing.T) {
 			tt.args.otherContact.CalcDistance(tt.args.target)
 			if got := contact.Less(&tt.args.otherContact); got != tt.want {
 				t.Errorf("Less() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestContact_String(t *testing.T) {
+	ip := net.ParseIP("0.0.0.0")
+	type fields struct {
+		ID       *KademliaID
+		Address  string
+		distance *KademliaID
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   string
+	}{
+		{"",fields{NewKademliaIDFromIP(&ip),"0.0.0.0",NewKademliaIDFromData("h")},"contact(\"e562f69ec36e625116376f376d991e41613e9bf3\", \"0.0.0.0\")"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			contact := &Contact{
+				ID:       tt.fields.ID,
+				Address:  tt.fields.Address,
+				distance: tt.fields.distance,
+			}
+			if got := contact.String(); got != tt.want {
+				t.Errorf("String() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -276,6 +305,7 @@ func TestContactCandidates_Remove(t *testing.T) {
 		wants int
 	}{
 		{"Remove",fields{[]Contact{{ID: NewKademliaIDFromData("my ID")}}},args{contact: Contact{ID: NewKademliaIDFromData("my ID")}},0},
+		{"Remove",fields{[]Contact{{ID: NewKademliaIDFromData("my ID")}}},args{contact: Contact{ID: NewKademliaIDFromData("my other ID")}},1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -292,3 +322,4 @@ func TestContactCandidates_Remove(t *testing.T) {
 		})
 	}
 }
+

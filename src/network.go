@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -57,12 +58,13 @@ const KAD_PORT = "5001"
 
 type Network struct {
 	localNode Node
+	running bool
 	ms_service *Message_service
 }
 
 func NewNetwork(ip *net.IP, message_service *Message_service) Network {
 	// TODO Enable fake connection
-	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String())), message_service}
+	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String())), true,message_service}
 }
 
 // Handles FIND_NODE  requests (initiated by findNodeRPC) from other nodes by sending back a bucket of the k closest
@@ -177,44 +179,50 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
 // Also checks if the requesting node should be added to the routing table of the local node
 // (see kickTheBucket)
 func (network *Network) Listen() {
-		for {
-			conn, err := network.ms_service.ListenUDP("udp", &net.UDPAddr{
-				Port:5001,
-			})
-			if err == nil {
-				msg := make([]byte, MAX_PACKET_SIZE)
-				conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
-				_,addr,err := conn.ReadFromUDP(msg)
+	for ; network.running; {
 
-				if err != nil {
-					fmt.Println("Could not read incoming message")
-				} else {
-					ID := (*KademliaID)(msg[1:1+ID_LEN])
+		conn, err := network.ms_service.ListenUDP("udp", &net.UDPAddr{
+			Port: 5001,
+		})
+		if err == nil {
+			msg := make([]byte, MAX_PACKET_SIZE)
+			conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
+			_, addr, err := conn.ReadFromUDP(msg)
 
-
-					//fmt.Println("Attempting to create a contact")
-					contact := NewContact(ID,addr.IP.To4().String())
-					//fmt.Println("Attempting to kick the bucket")
-					network.kickTheBucket(&contact)
-
-					network.unpackMessage(&msg,&conn,addr)
-				}
-
+			if err != nil {
+				fmt.Println("Could not read incoming message")
 			} else {
-				fmt.Println("Could not read from incoming connection.", err.Error())
+				ID := (*KademliaID)(msg[1 : 1+ID_LEN])
+
+				//fmt.Println("Attempting to create a contact")
+				contact := NewContact(ID, addr.IP.To4().String())
+				//fmt.Println("Attempting to kick the bucket")
+				network.kickTheBucket(&contact)
+
+				network.unpackMessage(&msg, &conn, addr)
 			}
-			conn.Close()
+
+		} else {
+			fmt.Println("Could not read from incoming connection.", err.Error())
 		}
+		conn.Close()
+	}
+}
+
+func (network *Network) shutdown() {
+	network.running = false
 }
 
 // Join a kademlia network via a known nodes IP and ID. The ID is probably the SHA-1 hash of its IP.
-func (network *Network) Join(id *KademliaID, address string) {
+func (network *Network) Join(id *KademliaID, address string) error{
 	knownNode := NewContact(id, address)
 
 	if network.Ping(&knownNode) { // If Ping is successful
 		fmt.Println("Joined network node " + knownNode.Address + " successfully!")
 		network.NodeLookup(network.localNode.routingTable.me.ID) // Start lookup algorithm on yourself
+		return nil
 	}
+	return errors.New("could not join network node")
 }
 
 // Ping some node directly with the given contact.address.

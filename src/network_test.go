@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 )
 
 func TestRemoveSelfOrTail(t *testing.T) {
@@ -388,4 +389,241 @@ func TestPostIterationProcessing(t *testing.T) {
 		t.Errorf("postIterationProcessing did not move contacts properly from " +
 			"unvisited to visited when searchRange = %d", s)
 	}
+}
+
+func TestNetwork_Listen(t *testing.T) {
+	type fields struct {
+		ip *net.IP
+		ms_service *Message_service
+	}
+	tests := []struct {
+		name   string
+		fields fields
+	}{
+		{"", fields{&net.IP{},NewMessageService(false,&net.UDPAddr{})}},
+		{"", fields{&net.IP{},NewMessageService(true,&net.UDPAddr{})}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			network := NewNetwork(tt.fields.ip,tt.fields.ms_service)
+			wait := make(chan bool)
+			go func() {
+				network.Listen()
+				wait <- true
+			}()
+			time.Sleep(500*time.Millisecond)
+			network.shutdown()
+			select {
+			case <- wait:
+				return
+			case <-time.After(1*time.Second):
+				t.Errorf("Listen() = %v, want %v", network.running, false)
+			}
+		})
+	}
+}
+
+func TestNetwork_Join(t *testing.T) {
+
+
+	ip1 := net.ParseIP("0.0.0.0")
+	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
+	ip2 := net.ParseIP("0.0.0.1")
+	ms2 := NewMessageService(true,&net.UDPAddr{IP: ip2})
+
+	net1 := NewNetwork(&ip1,ms1)
+	net2 := NewNetwork(&ip2,ms2)
+
+	net1_chan := make(chan bool)
+	go func() {
+		net1.Listen()
+		net1_chan <- true
+	}()
+	time.Sleep(50*time.Millisecond)
+	error := net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+
+	if error != nil {
+		t.Errorf("Join() = %v, want %v", "Failed to join", "Succesful join")
+	}
+	net1.shutdown()
+	<-net1_chan
+
+	global_map = make(map[string] chan string)
+	net2 = NewNetwork(&ip2,ms2)
+
+	error = net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+	if error == nil {
+		t.Errorf("Join() = %v, want %v", "Succesful join","Failed to join")
+	}
+
+	global_map = make(map[string] chan string)
+}
+
+func TestNetwork_Store(t *testing.T) {
+
+	global_map = make(map[string] chan string)
+
+	ip1 := net.ParseIP("0.0.0.0")
+	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
+	ip2 := net.ParseIP("0.0.0.1")
+	ms2 := NewMessageService(true,&net.UDPAddr{IP: ip2})
+
+	net1 := NewNetwork(&ip1,ms1)
+	net2 := NewNetwork(&ip2,ms2)
+
+	data := []byte("Hello world!")
+	net1.Store(data, NewKademliaIDFromData(string(data)))
+	net1_chan := make(chan bool)
+	go func() {
+		net1.Listen()
+		net1_chan <- true
+	}()
+	time.Sleep(50*time.Millisecond)
+	error := net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+	if error != nil {
+		t.Errorf("Store() failed to create a connection. Check if join passed testing")
+	}
+
+	result,_ := net2.DataLookup(NewKademliaIDFromData(string(data)))
+
+	if string(result[:12]) != string(data) {
+		t.Errorf("Store() = %v, want %v", string(data),string(result))
+	}
+
+	data = []byte("Another text")
+	net2.Store(data, NewKademliaIDFromData(string(data)))
+	result,_ = net2.DataLookup(NewKademliaIDFromData(string(data)))
+
+	if string(result[:12]) != string(data) {
+		t.Errorf("Store() = %v, want %v", string(data),string(result))
+	}
+	net1.shutdown()
+	<-net1_chan
+
+	global_map = make(map[string] chan string)
+
+}
+
+func TestNetwork_NodeLookup(t *testing.T) {
+
+	global_map = make(map[string] chan string)
+
+	ip1 := net.ParseIP("0.0.0.0")
+	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
+
+	ip2 := net.ParseIP("0.0.0.1")
+	ms2 := NewMessageService(true,&net.UDPAddr{IP: ip2})
+
+	ip3 := net.ParseIP("0.0.0.2")
+	ms3 := NewMessageService(true,&net.UDPAddr{IP: ip3})
+
+	net1 := NewNetwork(&ip1,ms1)
+	net2 := NewNetwork(&ip2,ms2)
+	net3 := NewNetwork(&ip3,ms3)
+
+	net1_chan := make(chan bool)
+	go func() {
+		net1.Listen()
+		net1_chan <- true
+	}()
+	net2_chan := make(chan bool)
+	go func() {
+		net2.Listen()
+		net2_chan <- true
+	}()
+	net3_chan := make(chan bool)
+	go func() {
+		net3.Listen()
+		net3_chan <- true
+	}()
+	time.Sleep(50*time.Millisecond)
+	error := net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+	if error != nil {
+		t.Errorf("NodeLookup() failed to create a connection. Check if join passed testing")
+	}
+	error = net3.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+	if error != nil {
+		t.Errorf("NodeLookup() failed to create a connection. Check if join passed testing")
+	}
+	contacts := net3.NodeLookup(NewKademliaIDFromIP(&ip1))
+
+	if len(contacts) != 2 {
+		t.Errorf("NodeLookup() = %v, want %v", len(contacts), 2)
+	}
+
+	net1.shutdown()
+	net2.shutdown()
+	net3.shutdown()
+	<- net1_chan
+	<- net2_chan
+	<- net3_chan
+}
+
+func TestNetwork_DataLookup(t *testing.T) {
+
+	global_map = make(map[string] chan string)
+
+	ip1 := net.ParseIP("0.0.0.0")
+	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
+
+	ip2 := net.ParseIP("0.0.0.1")
+	ms2 := NewMessageService(true,&net.UDPAddr{IP: ip2})
+
+	ip3 := net.ParseIP("0.0.0.2")
+	ms3 := NewMessageService(true,&net.UDPAddr{IP: ip3})
+
+	net1 := NewNetwork(&ip1,ms1)
+	net2 := NewNetwork(&ip2,ms2)
+	net3 := NewNetwork(&ip3,ms3)
+
+	net1_chan := make(chan bool)
+	go func() {
+		net1.Listen()
+		net1_chan <- true
+	}()
+	net2_chan := make(chan bool)
+	go func() {
+		net2.Listen()
+		net2_chan <- true
+	}()
+	net3_chan := make(chan bool)
+	go func() {
+		net3.Listen()
+		net3_chan <- true
+	}()
+	time.Sleep(50*time.Millisecond)
+	error := net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+	if error != nil {
+		t.Errorf("DataLookup() failed to create a connection. Check if join passed testing")
+	}
+
+	data := []byte("Hello world!")
+	net1.Store(data, NewKademliaIDFromData(string(data)))
+
+	error = net3.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+	if error != nil {
+		t.Errorf("DataLookup() failed to create a connection. Check if join passed testing")
+	}
+	result,contacts := net3.DataLookup(NewKademliaIDFromData(string(data)))
+	if len(contacts) != 1 {
+		t.Errorf("DataLookup() = %v, want %v", len(contacts), 1)
+	} else if string(result[:12]) != string(data){
+		t.Errorf("DataLookup() = %v, want %v", string(result), string(data))
+	}
+
+	data = []byte("Another hello!")
+	result,contacts = net3.DataLookup(NewKademliaIDFromData(string(data)))
+	if len(contacts) != 2 {
+		t.Errorf("DataLookup() = %v, want %v", len(contacts), 2)
+	}
+	if result != nil{
+		t.Errorf("DataLookup() = %v, want %v", string(result), string(data))
+	}
+	net1.shutdown()
+	net2.shutdown()
+	net3.shutdown()
+	<- net1_chan
+	<- net2_chan
+	<- net3_chan
+
 }

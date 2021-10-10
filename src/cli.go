@@ -82,8 +82,7 @@ func handleDualInput(command string, value string, network *Network) string {
 	case "join":
 		IP := net.ParseIP(value)[12:]
 		ID := NewKademliaIDFromIP(&IP)
-		network.Join(ID, value)
-		return ""
+		return network.Join(ID, value).Error()
 	case "get":
 		outputNodeID, outputContent := get(value, network)
 		outputString := ("NodeID: " + outputNodeID + "  Content: " + outputContent)
