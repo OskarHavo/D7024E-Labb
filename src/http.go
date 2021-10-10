@@ -19,9 +19,8 @@ func (network *Network) HTTPhandler(w http.ResponseWriter, r *http.Request){
 	case "POST":
 		body, error := ioutil.ReadAll(r.Body) // Read Request
 		defer r.Body.Close() // Always CLOSE.
-
 		// Check for errors or if body is empty.
-		if error != nil || string(body) == "" {
+		if error != nil || removeQuotationMarks(string(body)) == "" {
 			http.Error(w, "ERROR", http.StatusBadRequest)
 			fmt.Println("Error when POST")
 		}  else{
@@ -44,15 +43,17 @@ func (network *Network) HTTPhandler(w http.ResponseWriter, r *http.Request){
 		// Checks if there is something after the prefix.  /objects/XXXXXXXXXXXXXX
 		URLcomponents := strings.Split(r.URL.Path, "/")	// [ "", "objects", "hash" ]
 		hashValue := URLcomponents[2]
-
 		// Check if there is a hashvalue of correct size.
 		if(len(hashValue) != 40){
 			http.Error(w, "ERROR", http.StatusLengthRequired)
 			fmt.Println("Error when GET ", hashValue, " is not of correct length. (40)")
 		}else{
 				// Same as in Cli.go Get
+				fmt.Println(hashValue)
 				hash := NewKademliaID(hashValue)
+				fmt.Println(hash)
 				data, nodes := network.DataLookup(hash)
+				fmt.Println(data)
 				if data != nil {
 					// If data is not nil, send OK status and write.
 					w.WriteHeader(http.StatusOK)
@@ -78,3 +79,9 @@ func (network *Network) HTTPlisten() {
 	r.HandleFunc("/objects", network.HTTPhandler).Methods("POST")
 	log.Fatal(http.ListenAndServe(":3000", r))
  }
+// Remove first and last char of string (Quotation Marks) Needed for checking if "" = empty
+func removeQuotationMarks(str string) string {
+	stringStart := 1
+	stringEnd := len(str)-1
+	return str[stringStart : stringEnd]
+}

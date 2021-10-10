@@ -28,7 +28,8 @@ func TestHTTPhandler(t *testing.T) {
 	httpRecorder1 := httptest.NewRecorder()
 	input1 := "test"
 	jsonInput1, _ := json.Marshal(input1)
-	request1 := httptest.NewRequest("POST", (prefix+input1), bytes.NewBuffer(jsonInput1))
+	request1 := httptest.NewRequest("POST", ("/objects"), bytes.NewBuffer(jsonInput1))
+	request1.Close =true
 
 	net.HTTPhandler(httpRecorder1, request1)
 	status1 := httpRecorder1.Code
@@ -42,8 +43,9 @@ func TestHTTPhandler(t *testing.T) {
 
 	// Get Valid
 	httpRecorder2 := httptest.NewRecorder()
-	input2 := "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
-	request2 := httptest.NewRequest("GET", (prefix+input2), nil)
+	input2 := "5006d6f8302000e8b87fef5c50c071d6d97b4e88"
+	request2 := httptest.NewRequest("GET", (prefix+input2),nil)
+	request2.Close =true
 
 	net.HTTPhandler(httpRecorder2, request2)
 	status2 := httpRecorder2.Code
@@ -59,6 +61,7 @@ func TestHTTPhandler(t *testing.T) {
 	httpRecorder3 := httptest.NewRecorder()
 	input3 := ""
 	request3 := httptest.NewRequest("KADEMLIA", (prefix+input3), nil)
+	request3.Close =true
 
 	net.HTTPhandler(httpRecorder3, request3)
 	status3 := httpRecorder3.Code
@@ -74,6 +77,7 @@ func TestHTTPhandler(t *testing.T) {
 	input4 := ""
 	jsonInput4, _ := json.Marshal(input4)
 	request4 := httptest.NewRequest("POST", (prefix+input4), bytes.NewBuffer(jsonInput4))
+	request4.Close =true
 
 	net.HTTPhandler(httpRecorder4, request4)
 	status4 := httpRecorder4.Code
@@ -89,6 +93,7 @@ func TestHTTPhandler(t *testing.T) {
 	httpRecorder5 := httptest.NewRecorder()
 	input5 := "thisisnothash!"
 	request5 := httptest.NewRequest("GET", (prefix+input5), nil)
+	request5.Close =true
 
 	net.HTTPhandler(httpRecorder5, request5)
 	status5 := httpRecorder5.Code
@@ -103,6 +108,7 @@ func TestHTTPhandler(t *testing.T) {
 	httpRecorder6 := httptest.NewRecorder()
 	input6 := "a94a8fe5ccb19ba61c4c0873d391e98798200000"
 	request6 := httptest.NewRequest("GET", (prefix+input6), nil)
+	request6.Close =true
 
 	net.HTTPhandler(httpRecorder6, request6)
 	status6 := httpRecorder6.Code
