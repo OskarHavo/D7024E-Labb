@@ -23,7 +23,7 @@ func main() {
 			}
 		}
 	}
-	net := NewNetwork(&IP)
+	net := NewNetwork(&IP, NewMessageService(false,nil))
 	fmt.Println("Started node with ID " + net.localNode.routingTable.me.ID.String())
 	fmt.Println("Node has IP address " + IP.String())
 	go net.Listen()

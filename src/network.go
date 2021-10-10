@@ -57,12 +57,12 @@ const KAD_PORT = "5001"
 
 type Network struct {
 	localNode Node
-	ms_service Message_service
+	ms_service *Message_service
 }
 
-func NewNetwork(ip *net.IP) Network {
+func NewNetwork(ip *net.IP, message_service *Message_service) Network {
 	// TODO Enable fake connection
-	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String())), Message_service{use_fake: false}}
+	return Network{NewNode(NewContact(NewKademliaIDFromIP(ip),ip.String())), message_service}
 }
 
 // Handles FIND_NODE  requests (initiated by findNodeRPC) from other nodes by sending back a bucket of the k closest
@@ -241,13 +241,8 @@ func (network *Network) Ping(contact *Contact) bool {
 
 	// Setup and read reply
 	msg = make([]byte, HEADER_LEN)
-	conn.SetReadDeadline(time.Now().Add(20*time.Second))
-	conn.ReadFromUDP(msg)
-
-	tmp := make([]byte,255)
-	//conn.Read(tmp)
 	conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
-	_,_,err2 := conn.ReadFromUDP(tmp)
+	_,_,err2 := conn.ReadFromUDP(msg)
 	conn.Close()
 
 	if err2 != nil {
@@ -499,7 +494,7 @@ func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []b
 		// REC: nothing
 
 		// Prepare STORE RPC
-		storeMessage := make([]byte, HEADER_LEN+ID_LEN)
+		storeMessage := make([]byte, HEADER_LEN+ID_LEN+ID_LEN)
 		storeMessage[0] = STORE
 		copy(storeMessage[HEADER_LEN:HEADER_LEN+ID_LEN], network.localNode.routingTable.me.ID[:])
 		copy(storeMessage[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN], hash[:])
