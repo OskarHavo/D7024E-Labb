@@ -49,11 +49,8 @@ func (network *Network) HTTPhandler(w http.ResponseWriter, r *http.Request){
 			fmt.Println("Error when GET ", hashValue, " is not of correct length. (40)")
 		}else{
 				// Same as in Cli.go Get
-				fmt.Println(hashValue)
 				hash := NewKademliaID(hashValue)
-				fmt.Println(hash)
 				data, nodes := network.DataLookup(hash)
-				fmt.Println(data)
 				if data != nil {
 					// If data is not nil, send OK status and write.
 					w.WriteHeader(http.StatusOK)
