@@ -14,47 +14,47 @@ import (
 // 000: PING
 // 010: STORE
 // 100: FIND_NODE
-// 110: FIND_VALUE
+// 110: FIND_DATA
 // Followed by a 20 byte ID of needed and data for STORE command
 // 2 bit + 20 byte +
 
 // Protocol for returning information:
 // PING_ACK: Contains nothing
 
-// STORE_ACK: Not sure if this is a requirement. We can probably skip it
+// STORE_ACK: Not needed and therefore not implemented. The local node in kademlia doesn't care if the
+// 			  value is successfully stored or not
 
 // FIND_NODE_ACK: Nodes are stored in tuples with <IP, NODE_ID> in a long list without description of how many nodes there are.
 // 		We already know the size of each tuple and the size of the array -> size/tuple_bytes = number of tuples
 
-// FIND_VALUE_ACK: message type followed by one byte indicating a list of nodes or some actual data.
+// FIND_DATA_ACK: message type followed by one byte indicating a list of nodes or some actual data.
 // 		0: Found no data. Returns <=K closest nodes
 // 		1: Found data. Returns the full byte array
 
 // Golang doesn't have enums, this the closest alternative I could find
 const (
-	PING byte = iota
-	PING_ACK byte = iota
+	PING byte = 0
+	PING_ACK byte = 1
 
-	STORE byte = iota
-	//STORE_ACK byte = iota
+	STORE byte = 2
 
-	FIND_NODE byte = iota
-	FIND_NODE_ACK byte = iota
+	FIND_NODE byte = 4
+	FIND_NODE_ACK byte = 5
 
-	FIND_DATA byte = iota
-	FIND_DATA_ACK_SUCCESS byte = iota
-	FIND_DATA_ACK_FAIL byte = iota
+	REFRESH_DATA_TTL = 6
 
-	REFRESH_DATA_TTL = iota
+	FIND_DATA byte = 8
+	FIND_DATA_ACK_SUCCESS byte = 9
+	FIND_DATA_ACK_FAIL byte = 10
 )
 
-const MAX_PACKET_SIZE = 1024
-const IP_LEN = 4
-const HEADER_LEN = 1
-const BUCKET_HEADER_LEN = 1
-const TIMEOUT = 50
-
-const KAD_PORT = "5001"
+// Message communication constants
+const MAX_PACKET_SIZE = 1024 // Maximum size of a byte array
+const IP_LEN = 4 // Length of IP address in bytes
+const HEADER_LEN = 1 // Length of message type indicator in bytes
+const BUCKET_HEADER_LEN = 1 // Length of bucket size indicator in bytes
+const TIMEOUT = 50 // Amount of time before a i/o timeout is issued in milliseconds
+const KAD_PORT = "5001" // Port number used for communication between nodes
 
 type Network struct {
 	localNode Node
