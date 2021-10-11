@@ -18,6 +18,7 @@ type Node struct {
 	// a list of maximum k contacts that should be refreshed for some data object in storage until
 	// it is forgotten
 	refreshContacts map[KademliaID][]Contact
+	refreshMutex sync.Mutex
 
 	storateMutex sync.Mutex
 }
@@ -25,7 +26,7 @@ type Node struct {
 // Create a new Node
 func NewNode(ID Contact) Node {
 	return Node{make(map[KademliaID][]byte), NewRoutingTable(ID),
-		make(map[KademliaID]int), make(map[KademliaID][]Contact), sync.Mutex{}}
+		make(map[KademliaID]int), make(map[KademliaID][]Contact), sync.Mutex{},sync.Mutex{}}
 }
 
 // Local lookup of the size closest contacts to some target kademlia ID
@@ -80,6 +81,8 @@ func (kademlia *Node) Refresh(hash *KademliaID) {
 // will be sent to those contacts and the data will eventually be deleted by the contacts, including
 // "this node" if it is one of the associated ones
 func (kademlia *Node) Forget(hash *KademliaID) {
+	kademlia.refreshMutex.Lock()
+	defer kademlia.refreshMutex.Unlock()
 	if len(kademlia.refreshContacts[*hash]) != 0 {
 		delete(kademlia.refreshContacts, *hash)
 	}
@@ -88,6 +91,8 @@ func (kademlia *Node) Forget(hash *KademliaID) {
 // RememberContacts remembers which contacts are associated to some data hash
 // so that they can be refreshed in the future
 func (kademlia *Node) RememberContacts(hash *KademliaID, contacts []Contact) {
+	kademlia.refreshMutex.Lock()
+	defer kademlia.refreshMutex.Unlock()
 	if len(kademlia.refreshContacts[*hash]) == 0 {
 		kademlia.refreshContacts[*hash] = contacts
 	}

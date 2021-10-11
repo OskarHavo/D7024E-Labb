@@ -52,7 +52,7 @@ const MAX_PACKET_SIZE = 1024
 const IP_LEN = 4
 const HEADER_LEN = 1
 const BUCKET_HEADER_LEN = 1
-const TIMEOUT = 5000
+const TIMEOUT = 50
 
 const KAD_PORT = "5001"
 
@@ -115,7 +115,6 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, add
 
 // unpackMessage handles all kademlia requests from other nodes.
 func (network *Network) unpackMessage(msg []byte, connection Connection, address *net.UDPAddr) error {
-	defer connection.Close()
 	switch messageType := msg[0]; messageType {
 	case PING:
 		requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
@@ -188,27 +187,32 @@ func (network *Network) Listen() {
 		conn, err := network.ms_service.ListenUDP("udp", &net.UDPAddr{
 			Port: 5001,
 		})
+
 		if err == nil {
 			msg := make([]byte, MAX_PACKET_SIZE)
+			conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
 			_, addr, err := conn.ReadFromUDP(msg)
-				if err != nil {
-					fmt.Println("Could not read incoming message")
-					fmt.Println(err.Error())
-				} else {
-					go func() {
-						ID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
-						contact := NewContact(ID,addr.IP.To4().String())
-						network.kickTheBucket(&contact)
+			if err != nil {
+				//fmt.Println("Could not read incoming message")
+				//fmt.Println(err.Error())
+				conn.Close()
+			} else {
+				ID := (*KademliaID)(msg[HEADER_LEN : HEADER_LEN+ID_LEN])
 
-						network.unpackMessage(msg,conn,addr)
-					}()
+				contact := NewContact(ID, addr.IP.To4().String())
+				network.kickTheBucket(&contact)
 
-				}
+				network.unpackMessage(msg, conn, addr)
+				conn.Close()
+			}
 		} else {
+			//conn.Close()
 			fmt.Println("Could not read from incoming connection.", err.Error())
 		}
+
 	}
+	fmt.Println("Turning off listen")
 }
 
 func (network *Network) shutdown() {
@@ -236,6 +240,7 @@ func (network *Network) Ping(contact *Contact) bool {
 	start := time.Now()
 	remoteAddr, err := network.ms_service.ResolveUDPAddr("udp",service)
 	conn, err := network.ms_service.DialUDP("udp", nil, remoteAddr)
+	defer conn.Close()
 	if err != nil {
 		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
 		fmt.Println(err.Error())
@@ -254,7 +259,6 @@ func (network *Network) Ping(contact *Contact) bool {
 	msg = make([]byte, HEADER_LEN)
 	conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
 	_,_,err2 := conn.ReadFromUDP(msg)
-	conn.Close()
 
 	if err2 != nil {
 		fmt.Println("Could not read Ping message from", contact.ID.String())

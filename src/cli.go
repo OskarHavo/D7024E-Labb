@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 )
 // Entrypoint
 func main() {
@@ -23,18 +24,30 @@ func main() {
 			}
 		}
 	}
-	net := NewNetwork(&IP, NewMessageService(false,nil))
-	fmt.Println("Started node with ID " + net.localNode.routingTable.me.ID.String())
+	network := NewNetwork(&IP, NewMessageService(false,nil))
+	fmt.Println("Started node with ID " + network.localNode.routingTable.me.ID.String())
 	fmt.Println("Node has IP address " + IP.String())
-	go net.Listen()
-	go net.HTTPlisten()
-	go net.Remember()
-	go net.localNode.UpdateTTL()
+	go network.Listen()
+	go network.HTTPlisten()
+	go network.Remember()
+	go network.localNode.UpdateTTL()
+
+	// Brute force method for joining a network automatically
+	now := time.Now()
+	var join_IP net.IP
+	join_IP = IP
+	join_IP[15] = IP[15]+1
+	join_ID := NewKademliaIDFromIP(&join_IP)
+	for ;time.Now().Before(now.Add(60*time.Second)); {
+		if network.Join(join_ID,join_IP.To4().String()) == nil {
+			break
+		}
+	}
 
 	for {
 		fmt.Printf("\n Enter a command: ")
 		rawInput, _ := bufio.NewReader(os.Stdin).ReadString('\n') // Takes rawinput from console.
-		output := parseInput(rawInput, &net)
+		output := parseInput(rawInput, &network)
 		fmt.Println("Returned output:\n" + output)
 	}
 }
