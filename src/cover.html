@@ -63,15 +63,15 @@
 				
 				<option value="file3">d7024e/http.go (85.0%)</option>
 				
-				<option value="file4">d7024e/kademlia.go (57.9%)</option>
+				<option value="file4">d7024e/kademlia.go (60.0%)</option>
 				
 				<option value="file5">d7024e/kademliaid.go (100.0%)</option>
 				
 				<option value="file6">d7024e/message_service.go (76.5%)</option>
 				
-				<option value="file7">d7024e/network.go (87.5%)</option>
+				<option value="file7">d7024e/network.go (89.5%)</option>
 				
-				<option value="file8">d7024e/routingtable.go (100.0%)</option>
+				<option value="file8">d7024e/routingtable.go (84.1%)</option>
 				
 				<option value="file9">d7024e/ttl.go (0.0%)</option>
 				
@@ -510,7 +510,10 @@ func removeQuotationMarks(str string) string <span class="cov8" title="1">{
 		
 		<pre class="file" id="file4" style="display: none">package main
 
-import "fmt"
+import (
+        "fmt"
+        "sync"
+)
 
 // The node itself is an object that runs on it's own thread and waits for commands from the networking part
 // of a container. We don't need to perform any udp calls from here, just return messages to the local
@@ -525,12 +528,14 @@ type Node struct {
         // a list of maximum k contacts that should be refreshed for some data object in storage until
         // it is forgotten
         refreshContacts map[KademliaID][]Contact
+
+        storateMutex sync.Mutex
 }
 
 // Create a new Node
 func NewNode(ID Contact) Node <span class="cov8" title="1">{
         return Node{make(map[KademliaID][]byte), NewRoutingTable(ID),
-                make(map[KademliaID]int), make(map[KademliaID][]Contact)}
+                make(map[KademliaID]int), make(map[KademliaID][]Contact), sync.Mutex{}}
 }</span>
 
 // Local lookup of the size closest contacts to some target kademlia ID
@@ -540,6 +545,8 @@ func (kademlia *Node) LookupContact(target *KademliaID, size int) []Contact <spa
 
 // Lookup data
 func (kademlia *Node) LookupData(hash *KademliaID) []byte <span class="cov8" title="1">{
+        kademlia.storateMutex.Lock()
+        defer kademlia.storateMutex.Unlock()
         if kademlia.storage[*hash] == nil </span><span class="cov8" title="1">{
                 return nil
         }</span>
@@ -548,6 +555,8 @@ func (kademlia *Node) LookupData(hash *KademliaID) []byte <span class="cov8" tit
 
 // Store data
 func (kademlia *Node) Store(data []byte, hash *KademliaID) <span class="cov8" title="1">{
+        kademlia.storateMutex.Lock()
+        defer kademlia.storateMutex.Unlock()
         if  kademlia.storage[*hash] != nil</span><span class="cov8" title="1">{
                 // TODO Throw some error or something
                 return
@@ -558,6 +567,8 @@ func (kademlia *Node) Store(data []byte, hash *KademliaID) <span class="cov8" ti
 
 // Delete data stored at some hash
 func (kademlia *Node) Delete(hash *KademliaID) <span class="cov0" title="0">{
+        kademlia.storateMutex.Lock()
+        defer kademlia.storateMutex.Unlock()
         if kademlia.storage[*hash] != nil </span><span class="cov0" title="0">{ // Only delete if there is actually something there
                 delete(kademlia.storage, *hash) // Delete the data
                 delete(kademlia.ttl, *hash) // Delete the ttl associated with the data
@@ -968,23 +979,24 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, add
 }
 
 // unpackMessage handles all kademlia requests from other nodes.
-func (network *Network) unpackMessage(msg *[]byte, connection *Connection, address *net.UDPAddr) error <span class="cov8" title="1">{
-        switch messageType := (*msg)[0]; messageType </span>{
+func (network *Network) unpackMessage(msg []byte, connection Connection, address *net.UDPAddr) error <span class="cov8" title="1">{
+        defer connection.Close()
+        switch messageType := msg[0]; messageType </span>{
         case PING:<span class="cov8" title="1">
-                requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
+                requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
                 fmt.Println("Received a PING request from node", requesterID.String())
                 reply := make([]byte, HEADER_LEN)
                 reply[0] = PING_ACK
 
-                _,err := (*connection).WriteToUDP(reply, address)
+                _,err := connection.WriteToUDP(reply, address)
                 if err != nil </span><span class="cov0" title="0">{
                         fmt.Println("There was an error when replying to a PING request.", err.Error())
                         return err
                 }</span>
                 <span class="cov8" title="1">return err</span>
         case FIND_NODE:<span class="cov8" title="1">
-                network.sendFindNodeAck(msg, connection, address, FIND_NODE_ACK)
+                network.sendFindNodeAck(&amp;msg, &amp;connection, address, FIND_NODE_ACK)
                 return nil</span>
         case FIND_DATA:<span class="cov8" title="1">
                 // Message format:
@@ -992,28 +1004,28 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
                 // SEND: [MSG TYPE, REQUESTER ID, BUCKET SIZE, BUCKET:[ID, IP]]
                 //   OR  [MSG TYPE, DATA]
                 fmt.Println("Received a FIND_DATA request")
-                hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
+                hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
                 data := network.localNode.LookupData(hash)
                 if data != nil </span><span class="cov8" title="1">{
                         var reply = make([]byte, HEADER_LEN+len(data))
                         reply[0] = FIND_DATA_ACK_SUCCESS
                         copy(reply[HEADER_LEN:], data)
-                        _, err := (*connection).WriteToUDP(reply, address)
+                        _, err := connection.WriteToUDP(reply, address)
                         if err != nil </span><span class="cov0" title="0">{
                                 fmt.Println("There was an error when replying to a FIND_DATA request.", err.Error())
                         }</span>
                         <span class="cov8" title="1">return err</span>
                 } else<span class="cov8" title="1"> {
-                        network.sendFindNodeAck(msg, connection, address, FIND_DATA_ACK_FAIL)
+                        network.sendFindNodeAck(&amp;msg, &amp;connection, address, FIND_DATA_ACK_FAIL)
                 }</span>
                 <span class="cov8" title="1">return nil</span>
         case STORE:<span class="cov8" title="1">
                 // Message format:
                 // REC: [MSG TYPE, REQUESTER ID, HASH, DATA...]
                 // SEND: nothing
-                requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
-                hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
-                data := (*msg)[HEADER_LEN+ID_LEN+ID_LEN:MAX_PACKET_SIZE]
+                requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+                hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
+                data := msg[HEADER_LEN+ID_LEN+ID_LEN:MAX_PACKET_SIZE]
                 fmt.Println("Received a STORE request from node", requesterID.String())
 
                 network.localNode.Store(data, hash)
@@ -1022,8 +1034,8 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
                 // Message format:
                 // SEND: [MSG TYPE, REQUESTER ID, REFRESH HASH]
                 // REC: nothing
-                requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
-                hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
+                requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+                hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
                 fmt.Println("Received a REFRESH request from node", requesterID.String())
 
                 network.localNode.Refresh(hash)
@@ -1048,17 +1060,19 @@ func (network *Network) Listen() <span class="cov8" title="1">{
                                         fmt.Println("Could not read incoming message")
                                         fmt.Println(err.Error())
                                 }</span> else<span class="cov8" title="1"> {
-                                        ID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+                                        go func() </span><span class="cov8" title="1">{
+                                                ID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
-                                        contact := NewContact(ID,addr.IP.To4().String())
-                                        network.kickTheBucket(&amp;contact)
+                                                contact := NewContact(ID,addr.IP.To4().String())
+                                                network.kickTheBucket(&amp;contact)
 
-                                        network.unpackMessage(&amp;msg,&amp;conn,addr)
-                                }</span>
+                                                network.unpackMessage(msg,conn,addr)
+                                        }</span>()
+
+                                }
                 } else<span class="cov8" title="1"> {
                         fmt.Println("Could not read from incoming connection.", err.Error())
                 }</span>
-                <span class="cov8" title="1">conn.Close()</span>
         }
 }
 
@@ -1371,31 +1385,11 @@ func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []b
 // Call this function whenever you want to add a new node to the routing table. The node can either
 // already exist in a bucket or be a new node.
 func (network *Network) kickTheBucket(contact *Contact) <span class="cov8" title="1">{
-        // First find the appropriate bucket
-        bucketIndex := network.localNode.routingTable.getBucketIndex(contact.ID)
-        bucket := network.localNode.routingTable.buckets[bucketIndex]
-
-        if bucket.Len() == k </span><span class="cov0" title="0">{
-                element := bucket.Contains(contact)
-                if element != nil </span><span class="cov0" title="0">{
-                        bucket.list.MoveToFront(element)
-                }</span> else<span class="cov0" title="0"> {
-                        // Choose a node to sacrifice
-                        sacrifice := bucket.list.Back().Value.(Contact)
-
-                        if network.Ping(&amp;sacrifice) </span>{<span class="cov0" title="0">
-                                //fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
-                        }</span> else<span class="cov0" title="0"> {
-                                bucket.list.Remove(bucket.list.Back())
-                                bucket.AddContact(*contact)
-                        }</span>
-                }
-        } else<span class="cov8" title="1"> {
-                bucket.AddContact(*contact)
-        }</span>
+        // Find the appropriate bucket and "kick" it
+        network.localNode.routingTable.KickTheBucket(contact,network.Ping)
 
         // LOGGING, TEMP
-        <span class="cov8" title="1">fmt.Println("Routing table state after kicking the bucket:")
+        fmt.Println("Routing table state after kicking the bucket:")
         contacts := network.localNode.routingTable.FindClosestContacts(network.localNode.routingTable.me.ID, 9999)
         for _, c := range contacts </span><span class="cov8" title="1">{
                 fmt.Println("&lt;" + c.ID.String() + ", " + c.Address + "&gt;")
@@ -1545,6 +1539,8 @@ func postIterationProcessing(visited *ContactCandidates, unvisited *ContactCandi
 		
 		<pre class="file" id="file8" style="display: none">package main
 
+import "sync"
+
 const k = 20
 const alpha = 3
 
@@ -1553,6 +1549,7 @@ const alpha = 3
 type RoutingTable struct {
         me      Contact
         buckets [ID_LEN * 8]*bucket
+        bucketMutex sync.Mutex
 }
 
 // NewRoutingTable returns a new instance of a RoutingTable
@@ -1567,6 +1564,9 @@ func NewRoutingTable(me Contact) *RoutingTable <span class="cov8" title="1">{
 
 // AddContact add a new contact to the correct Bucket
 func (routingTable *RoutingTable) AddContact(contact Contact) <span class="cov8" title="1">{
+        routingTable.bucketMutex.Lock()
+        defer routingTable.bucketMutex.Unlock()
+
         bucketIndex := routingTable.getBucketIndex(contact.ID)
         bucket := routingTable.buckets[bucketIndex]
         bucket.AddContact(contact)
@@ -1574,8 +1574,11 @@ func (routingTable *RoutingTable) AddContact(contact Contact) <span class="cov8"
 
 // FindClosestContacts finds the count closest Contacts to the target in the RoutingTable
 func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count int) []Contact <span class="cov8" title="1">{
-        var candidates ContactCandidates
         bucketIndex := routingTable.getBucketIndex(target)
+        routingTable.bucketMutex.Lock()
+
+        var candidates ContactCandidates
+        defer routingTable.bucketMutex.Unlock()
         bucket := routingTable.buckets[bucketIndex]
 
         candidates.Append(bucket.GetContactsAndCalcDistances(target))
@@ -1612,6 +1615,31 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int <span class
         }
 
         <span class="cov8" title="1">return ID_LEN*8 - 1</span>
+}
+
+// KickTheBucket tries to remove an old node and put in a new one. The old contact will remain if it responds to a ping
+func (routingTable *RoutingTable)KickTheBucket(contact *Contact, ping func(*Contact) bool) <span class="cov8" title="1">{
+        bucketIndex := routingTable.getBucketIndex(contact.ID)
+        bucket := routingTable.buckets[bucketIndex]
+
+        if bucket.Len() == k </span><span class="cov0" title="0">{
+                element := bucket.Contains(contact)
+                if element != nil </span><span class="cov0" title="0">{
+                        bucket.list.MoveToFront(element)
+                }</span> else<span class="cov0" title="0"> {
+                        // Choose a node to sacrifice
+                        sacrifice := bucket.list.Back().Value.(Contact)
+
+                        if ping(&amp;sacrifice) </span>{<span class="cov0" title="0">
+                                //fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
+                        }</span> else<span class="cov0" title="0"> {
+                                bucket.list.Remove(bucket.list.Back())
+                                bucket.AddContact(*contact)
+                        }</span>
+                }
+        } else<span class="cov8" title="1"> {
+                bucket.AddContact(*contact)
+        }</span>
 }
 </pre>
 		

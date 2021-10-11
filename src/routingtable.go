@@ -1,5 +1,7 @@
 package main
 
+import "sync"
+
 const k = 20
 const alpha = 3
 
@@ -8,6 +10,7 @@ const alpha = 3
 type RoutingTable struct {
 	me      Contact
 	buckets [ID_LEN * 8]*bucket
+	bucketMutex sync.Mutex
 }
 
 // NewRoutingTable returns a new instance of a RoutingTable
@@ -22,6 +25,9 @@ func NewRoutingTable(me Contact) *RoutingTable {
 
 // AddContact add a new contact to the correct Bucket
 func (routingTable *RoutingTable) AddContact(contact Contact) {
+	routingTable.bucketMutex.Lock()
+	defer routingTable.bucketMutex.Unlock()
+
 	bucketIndex := routingTable.getBucketIndex(contact.ID)
 	bucket := routingTable.buckets[bucketIndex]
 	bucket.AddContact(contact)
@@ -29,8 +35,11 @@ func (routingTable *RoutingTable) AddContact(contact Contact) {
 
 // FindClosestContacts finds the count closest Contacts to the target in the RoutingTable
 func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count int) []Contact {
-	var candidates ContactCandidates
 	bucketIndex := routingTable.getBucketIndex(target)
+	routingTable.bucketMutex.Lock()
+
+	var candidates ContactCandidates
+	defer routingTable.bucketMutex.Unlock()
 	bucket := routingTable.buckets[bucketIndex]
 
 	candidates.Append(bucket.GetContactsAndCalcDistances(target))
@@ -67,4 +76,29 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	}
 
 	return ID_LEN*8 - 1
+}
+
+// KickTheBucket tries to remove an old node and put in a new one. The old contact will remain if it responds to a ping
+func (routingTable *RoutingTable)KickTheBucket(contact *Contact, ping func(*Contact) bool) {
+	bucketIndex := routingTable.getBucketIndex(contact.ID)
+	bucket := routingTable.buckets[bucketIndex]
+
+	if bucket.Len() == k {
+		element := bucket.Contains(contact)
+		if element != nil {
+			bucket.list.MoveToFront(element)
+		} else {
+			// Choose a node to sacrifice
+			sacrifice := bucket.list.Back().Value.(Contact)
+
+			if ping(&sacrifice) {
+				//fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
+			} else {
+				bucket.list.Remove(bucket.list.Back())
+				bucket.AddContact(*contact)
+			}
+		}
+	} else {
+		bucket.AddContact(*contact)
+	}
 }

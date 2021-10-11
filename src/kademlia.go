@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // The node itself is an object that runs on it's own thread and waits for commands from the networking part
 // of a container. We don't need to perform any udp calls from here, just return messages to the local
@@ -15,12 +18,14 @@ type Node struct {
 	// a list of maximum k contacts that should be refreshed for some data object in storage until
 	// it is forgotten
 	refreshContacts map[KademliaID][]Contact
+
+	storateMutex sync.Mutex
 }
 
 // Create a new Node
 func NewNode(ID Contact) Node {
 	return Node{make(map[KademliaID][]byte), NewRoutingTable(ID),
-		make(map[KademliaID]int), make(map[KademliaID][]Contact)}
+		make(map[KademliaID]int), make(map[KademliaID][]Contact), sync.Mutex{}}
 }
 
 // Local lookup of the size closest contacts to some target kademlia ID
@@ -30,6 +35,8 @@ func (kademlia *Node) LookupContact(target *KademliaID, size int) []Contact {
 
 // Lookup data
 func (kademlia *Node) LookupData(hash *KademliaID) []byte {
+	kademlia.storateMutex.Lock()
+	defer kademlia.storateMutex.Unlock()
 	if kademlia.storage[*hash] == nil {
 		return nil
 	}
@@ -38,6 +45,8 @@ func (kademlia *Node) LookupData(hash *KademliaID) []byte {
 
 // Store data
 func (kademlia *Node) Store(data []byte, hash *KademliaID) {
+	kademlia.storateMutex.Lock()
+	defer kademlia.storateMutex.Unlock()
 	if  kademlia.storage[*hash] != nil{
 		// TODO Throw some error or something
 		return
@@ -48,6 +57,8 @@ func (kademlia *Node) Store(data []byte, hash *KademliaID) {
 
 // Delete data stored at some hash
 func (kademlia *Node) Delete(hash *KademliaID) {
+	kademlia.storateMutex.Lock()
+	defer kademlia.storateMutex.Unlock()
 	if kademlia.storage[*hash] != nil { // Only delete if there is actually something there
 		delete(kademlia.storage, *hash) // Delete the data
 		delete(kademlia.ttl, *hash) // Delete the ttl associated with the data

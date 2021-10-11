@@ -114,23 +114,24 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, add
 }
 
 // unpackMessage handles all kademlia requests from other nodes.
-func (network *Network) unpackMessage(msg *[]byte, connection *Connection, address *net.UDPAddr) error {
-	switch messageType := (*msg)[0]; messageType {
+func (network *Network) unpackMessage(msg []byte, connection Connection, address *net.UDPAddr) error {
+	defer connection.Close()
+	switch messageType := msg[0]; messageType {
 	case PING:
-		requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
+		requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
 		fmt.Println("Received a PING request from node", requesterID.String())
 		reply := make([]byte, HEADER_LEN)
 		reply[0] = PING_ACK
 
-		_,err := (*connection).WriteToUDP(reply, address)
+		_,err := connection.WriteToUDP(reply, address)
 		if err != nil {
 			fmt.Println("There was an error when replying to a PING request.", err.Error())
 			return err
 		}
 		return err
 	case FIND_NODE:
-		network.sendFindNodeAck(msg, connection, address, FIND_NODE_ACK)
+		network.sendFindNodeAck(&msg, &connection, address, FIND_NODE_ACK)
 		return nil
 	case FIND_DATA:
 		// Message format:
@@ -138,28 +139,28 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
 		// SEND: [MSG TYPE, REQUESTER ID, BUCKET SIZE, BUCKET:[ID, IP]]
 		//   OR  [MSG TYPE, DATA]
 		fmt.Println("Received a FIND_DATA request")
-		hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
+		hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
 		data := network.localNode.LookupData(hash)
 		if data != nil {
 			var reply = make([]byte, HEADER_LEN+len(data))
 			reply[0] = FIND_DATA_ACK_SUCCESS
 			copy(reply[HEADER_LEN:], data)
-			_, err := (*connection).WriteToUDP(reply, address)
+			_, err := connection.WriteToUDP(reply, address)
 			if err != nil {
 				fmt.Println("There was an error when replying to a FIND_DATA request.", err.Error())
 			}
 			return err
 		} else {
-			network.sendFindNodeAck(msg, connection, address, FIND_DATA_ACK_FAIL)
+			network.sendFindNodeAck(&msg, &connection, address, FIND_DATA_ACK_FAIL)
 		}
 		return nil
 	case STORE:
 		// Message format:
 		// REC: [MSG TYPE, REQUESTER ID, HASH, DATA...]
 		// SEND: nothing
-		requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
-		hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
-		data := (*msg)[HEADER_LEN+ID_LEN+ID_LEN:MAX_PACKET_SIZE]
+		requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+		hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
+		data := msg[HEADER_LEN+ID_LEN+ID_LEN:MAX_PACKET_SIZE]
 		fmt.Println("Received a STORE request from node", requesterID.String())
 
 		network.localNode.Store(data, hash)
@@ -168,8 +169,8 @@ func (network *Network) unpackMessage(msg *[]byte, connection *Connection, addre
 		// Message format:
 		// SEND: [MSG TYPE, REQUESTER ID, REFRESH HASH]
 		// REC: nothing
-		requesterID := (*KademliaID)((*msg)[HEADER_LEN:HEADER_LEN+ID_LEN])
-		hash := (*KademliaID)((*msg)[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
+		requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+		hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
 		fmt.Println("Received a REFRESH request from node", requesterID.String())
 
 		network.localNode.Refresh(hash)
@@ -194,17 +195,19 @@ func (network *Network) Listen() {
 					fmt.Println("Could not read incoming message")
 					fmt.Println(err.Error())
 				} else {
-					ID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+					go func() {
+						ID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
-					contact := NewContact(ID,addr.IP.To4().String())
-					network.kickTheBucket(&contact)
+						contact := NewContact(ID,addr.IP.To4().String())
+						network.kickTheBucket(&contact)
 
-					network.unpackMessage(&msg,&conn,addr)
+						network.unpackMessage(msg,conn,addr)
+					}()
+
 				}
 		} else {
 			fmt.Println("Could not read from incoming connection.", err.Error())
 		}
-		conn.Close()
 	}
 }
 
@@ -517,28 +520,8 @@ func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []b
 // Call this function whenever you want to add a new node to the routing table. The node can either
 // already exist in a bucket or be a new node.
 func (network *Network) kickTheBucket(contact *Contact) {
-	// First find the appropriate bucket
-	bucketIndex := network.localNode.routingTable.getBucketIndex(contact.ID)
-	bucket := network.localNode.routingTable.buckets[bucketIndex]
-
-	if bucket.Len() == k {
-		element := bucket.Contains(contact)
-		if element != nil {
-			bucket.list.MoveToFront(element)
-		} else {
-			// Choose a node to sacrifice
-			sacrifice := bucket.list.Back().Value.(Contact)
-
-			if network.Ping(&sacrifice) {
-				//fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
-			} else {
-				bucket.list.Remove(bucket.list.Back())
-				bucket.AddContact(*contact)
-			}
-		}
-	} else {
-		bucket.AddContact(*contact)
-	}
+	// Find the appropriate bucket and "kick" it
+	network.localNode.routingTable.KickTheBucket(contact,network.Ping)
 
 	// LOGGING, TEMP
 	fmt.Println("Routing table state after kicking the bucket:")
