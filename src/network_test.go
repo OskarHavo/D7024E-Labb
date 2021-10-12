@@ -328,7 +328,6 @@ func TestPostIterationProcessing(t *testing.T) {
 	// We assume that postIterationProcessing will return the same value as doWideSearch
 	// because it is IMPOSSIBLE TO MESS UP (1 LINE ASSIGNMENT)
 
-
 	// We are checking that movement works for a
 	// searchRange = min, searchRange = max and min < searchRange < max
 	var v, u ContactCandidates
@@ -653,11 +652,8 @@ func TestNetwork_unpackMessage(t *testing.T) {
 	if error != nil {
 		t.Errorf("unpackMessage() = %v, want %v", "Failed to join", "Succesful join")
 	}
-
 	net2.shutdown()
 	<-net2_chan
-
-	
 
 	net1.shutdown()
 	<-net1_chan

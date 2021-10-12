@@ -54,7 +54,6 @@ func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count 
 			candidates.Append(bucket.GetContactsAndCalcDistances(target))
 		}
 	}
-
 	candidates.Sort()
 
 	if count > candidates.Len() {
@@ -92,7 +91,7 @@ func (routingTable *RoutingTable)KickTheBucket(contact *Contact, ping func(*Cont
 			sacrifice := bucket.list.Back().Value.(Contact)
 
 			if ping(&sacrifice) {
-				//fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
+
 			} else {
 				bucket.list.Remove(bucket.list.Back())
 				bucket.AddContact(*contact)

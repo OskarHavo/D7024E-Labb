@@ -194,8 +194,6 @@ func (network *Network) Listen() {
 			_, addr, err := conn.ReadFromUDP(msg)
 
 			if err != nil {
-				//fmt.Println("Could not read incoming message")
-				//fmt.Println(err.Error())
 				conn.Close()
 			} else {
 				ID := (*KademliaID)(msg[HEADER_LEN : HEADER_LEN+ID_LEN])
@@ -207,10 +205,8 @@ func (network *Network) Listen() {
 				conn.Close()
 			}
 		} else {
-			//conn.Close()
 			fmt.Println("Could not read from incoming connection.", err.Error())
 		}
-
 	}
 	fmt.Println("Turning off listen")
 }

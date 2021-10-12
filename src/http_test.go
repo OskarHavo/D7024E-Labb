@@ -10,6 +10,7 @@ import (
 	"testing"
 )
 
+// Tests for POST, GET and INVALID inputs through HTTP Requests.
 func TestHTTPhandler(t *testing.T) {
 	// Setup
 	addrs,_ := net.InterfaceAddrs()

@@ -12,10 +12,10 @@ type Node struct {
 	storage map[KademliaID][]byte
 	routingTable *RoutingTable
 
-	// map that contains the time-to-live of each data object in storage
+	// Map that contains the time-to-live of each data object in storage
 	ttl map[KademliaID]int
 
-	// a list of maximum k contacts that should be refreshed for some data object in storage until
+	// A list of maximum k contacts that should be refreshed for some data object in storage until
 	// it is forgotten
 	refreshContacts map[KademliaID][]Contact
 	refreshMutex sync.Mutex
@@ -66,8 +66,7 @@ func (kademlia *Node) Delete(hash *KademliaID) {
 	}
 }
 
-// Refresh will update the ttl associated with some data by setting it to some system-wide
-// predetermined parameter
+// Refresh will update the ttl associated with some data by setting it to some system-wide predetermined parameter
 func (kademlia *Node) Refresh(hash *KademliaID) {
 	if kademlia.ttl[*hash] != 0 { // Can't refresh something that is already dead
 		kademlia.ttl[*hash] = TIME_TO_LIVE

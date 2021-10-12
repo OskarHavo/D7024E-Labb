@@ -13,11 +13,9 @@ const ID_LEN = 20
 type KademliaID [ID_LEN]byte
 
 func sha1Hash(content string) []byte {
-	// https://gobyexample.com/sha1-hashes
 	h := sha1.New()
 	h.Write([]byte(content))
 	hashedFileBytes := h.Sum(nil)
-	//hashedFileString := hex.EncodeToString(hashedFileBytes) // Encode byte[] to string before entering it into the hashmap.
 	return hashedFileBytes
 }
 
@@ -32,9 +30,8 @@ func NewKademliaID(data string) *KademliaID {
 
 	return &newKademliaID
 }
-
+// NewKademliaIDFromData returns a new instance of a KademliaID based on the hash input
 func NewKademliaIDFromData(data string) *KademliaID {
-	//decoded, _ := hex.DecodeString(data)
 	decoded := sha1Hash(data)
 
 	newKademliaID := KademliaID{}
@@ -47,7 +44,6 @@ func NewKademliaIDFromData(data string) *KademliaID {
 
 // Create kademlia ID from an IP address, for example a node.
 func NewKademliaIDFromIP(ip *net.IP) *KademliaID {
-	//decoded, _ := hex.DecodeString(ip.String())
 	decoded := sha1Hash(ip.String())
 	newKademliaID := KademliaID{}
 	for i := 0; i < ID_LEN; i++ {

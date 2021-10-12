@@ -29,11 +29,9 @@ func (bucket *bucket) AddContact(contact Contact) {
 	}
 	if element == nil {
 		if bucket.list.Len() < k {
-			//fmt.Println("Adding new node " + contact.ID.String() + " to front of bucket!")
 			bucket.list.PushFront(contact)
 		}
 	} else {
-		//fmt.Println("Moving node " + contact.ID.String() + " to front of bucket!")
 		bucket.list.MoveToFront(element)
 	}
 }
@@ -48,7 +46,6 @@ func (bucket *bucket) Contains(contact *Contact)  *list.Element {
 			element = e
 		}
 	}
-
 	return element
 }
 
@@ -61,7 +58,6 @@ func (bucket *bucket) GetContactsAndCalcDistances(target *KademliaID) []Contact 
 		contact.CalcDistance(target)
 		contacts = append(contacts, contact)
 	}
-
 	return contacts
 }
 

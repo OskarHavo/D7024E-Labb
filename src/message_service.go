@@ -44,10 +44,8 @@ func (ms_service *Message_service) ListenUDP(udp string, addr *net.UDPAddr) (Con
 			global_map[receive_ID] = make(chan string)
 		}
 		comm_mutex.Unlock()
-		//fmt.Println(receive_ID,"	: Listening to UDP")
 		select {
 		case s := <-global_map[receive_ID]:
-			//fmt.Println(receive_ID,"	: Received connection from ", s)
 			return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: global_map[receive_ID],receive_IP: receive_ID, send_channel: global_map[s],send_IP: s}, nil
 		case <-time.After(1*time.Second):
 			return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: nil}, errors.New("listened, but nobody answered")
@@ -72,15 +70,12 @@ func (ms_service *Message_service) DialUDP(network string, laddr *net.UDPAddr, r
 	} else {
 		var port = rand.Intn(1000000)	// This is our temporary return address.
 		home_addr := ms_service.home_addr.IP.To4().String() + ":" + strconv.FormatInt(int64(port), 10)
-		//fmt.Println("-----------------------------", raddr)
 		send_ID := raddr.IP.To4().String() + ":5001"
-		//fmt.Println(home_addr, "	: Connecting to UDP address ", send_ID)
 		comm_mutex.Lock()
 		if global_map[send_ID] == nil {
 			comm_mutex.Unlock()
 			return Connection{conn: nil,use_fake: ms_service.use_fake}, errors.New("failed to dial udp")
 		} else {
-			//fmt.Println(home_addr, "	: Established connection at dialUDP to ",send_ID)
 			global_map[home_addr] = make(chan string)
 			comm_mutex.Unlock()
 
@@ -108,7 +103,6 @@ func (connection *Connection) ReadFromUDP(msg []byte) (n int, addr *net.UDPAddr,
 		return connection.conn.ReadFromUDP(msg)
 	} else {
 		// TODO Add read timeout
-		//fmt.Println(connection.receive_IP, "	: Starting to read from UDP channel ")
 
 		select {
 		case data := <- connection.receive_channel:
@@ -124,7 +118,6 @@ func (connection *Connection) WriteToUDP(b []byte, addr *net.UDPAddr) (int, erro
 	if !connection.use_fake {
 		return connection.conn.WriteToUDP(b,addr)
 	} else {
-		//fmt.Println(connection.receive_IP, "	: Starting to write to UDP channel", connection.send_IP)
 		select {
 		case connection.send_channel <- string(b):
 			return len(b),nil
@@ -147,17 +140,5 @@ func (connection *Connection) Close() {
 	if !connection.use_fake {
 		connection.conn.Close()
 	} else {
-		/*
-		i := 0
-		for key,value := range global_map {
-			if value == connection.send_channel || value == connection.receive_channel{
-				i++
-				delete(global_map, key)
-			}
-			if i == 2 {
-				return
-			}
-		}
-		 */
 	}
 }

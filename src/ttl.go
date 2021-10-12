@@ -20,7 +20,6 @@ func (kademlia *Node) UpdateTTL() {
 		for dataHash, timeToLive := range kademlia.ttl {
 			delta := time.Since(lastUpdated)
 			kademlia.ttl[dataHash] -= int(delta.Milliseconds())
-			//fmt.Println("TTL:", kademlia.ttl[dataHash])
 
 			if timeToLive <= 0 {
 				kademlia.Delete(&dataHash)

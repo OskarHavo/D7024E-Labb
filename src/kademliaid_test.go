@@ -2,17 +2,11 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
 	"math/rand"
 	"strconv"
 	"testing"
 	"time"
 )
-
-
-func TestSha1Hash(t *testing.T) {
-	fmt.Println("This import is not unused >:(")
-}
 
 func TestNewKademliaID(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
@@ -42,29 +36,4 @@ func TestNewKademliaIDFromData(t *testing.T) {
 			t.Errorf("NewKademliaIDFromData error at byte array index %d", i)
 		}
 	}
-}
-
-func TestNewKademliaIDFromIP(t *testing.T) {
-	fmt.Println("This import is not unused >:(")
-
-}
-
-func TestKademliaID_Less(t *testing.T) {
-	fmt.Println("This import is not unused >:(")
-
-}
-
-func TestKademliaID_Equals(t *testing.T) {
-	fmt.Println("This import is not unused >:(")
-
-}
-
-func TestKademliaID_CalcDistance(t *testing.T) {
-	fmt.Println("This import is not unused >:(")
-
-}
-
-func TestKademliaID_String(t *testing.T) {
-	fmt.Println("This import is not unused >:(")
-
 }

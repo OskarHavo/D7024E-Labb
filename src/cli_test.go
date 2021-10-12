@@ -7,10 +7,6 @@ import (
 	"time"
 )
 
-// Files must be xxx_test.go
-// Functions must be TestXxxx(t *testing.T)
-// Then --> go test -v -cover
-
 func TestExit(t *testing.T) {
 	// Test Exit
 	output1 := exit(1)
@@ -134,7 +130,7 @@ func TestHandleDualInput(t *testing.T) {
 			net1_chan <- true
 		}()
 		time.Sleep(50*time.Millisecond)
-		//net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+
 		output := handleDualInput("join","0.0.0.0",&net2)
 		groundTruth := ""
 		if output != groundTruth {
@@ -150,10 +146,8 @@ func TestHandleDualInput(t *testing.T) {
 	{
 		ip2 := net.ParseIP("0.0.0.1")
 		ms2 := NewMessageService(true, &net.UDPAddr{IP: ip2})
-
 		net2 := NewNetwork(&ip2, ms2)
 
-		//net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
 		output := handleDualInput("join","0.0.0.0",&net2)
 		groundTruth := "could not join network node"
 		if output != groundTruth {
@@ -214,17 +208,6 @@ func TestPut(t *testing.T) {
 	} else {
 		fmt.Println("PUT - Good Input = Passed") // -v must be added to go test for prints to appear.
 	}
-	/* No longer checks for this @Robyn
-	// Test Already Used Input
-	output_2 := put("testing", &net)
-	groundTruth_2 := "Uploaded File Already Exists"
-	if output_2 != groundTruth_2 {
-		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_2, groundTruth_2)
-	} else {
-		fmt.Println("PUT - Already Used Input = Passed") // -v must be added to go test for prints to appear.
-	}
-	*/
-
 }
 
 func TestGet(t *testing.T) {

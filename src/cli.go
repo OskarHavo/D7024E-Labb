@@ -27,6 +27,7 @@ func main() {
 	network := NewNetwork(&IP, NewMessageService(false,nil))
 	fmt.Println("Started node with ID " + network.localNode.routingTable.me.ID.String())
 	fmt.Println("Node has IP address " + IP.String())
+	//Create Threads.
 	go network.Listen()
 	go network.HTTPlisten()
 	go network.Remember()
@@ -43,7 +44,6 @@ func main() {
 			break
 		}
 	}
-
 	for {
 		fmt.Printf("\n Enter a command: ")
 		rawInput, _ := bufio.NewReader(os.Stdin).ReadString('\n') // Takes rawinput from console.
@@ -69,7 +69,6 @@ func parseInput(input string, net *Network) string {
 	// Dual input
 	if len(stringinput) > 1 { // Checks if you have 1 or 2 Commands and then runs the correct function accordingly.
 		value = stringinput[1]
-		// value = strings.ToLower(strings.Trim(value, " \r\n"))
 		value = strings.Trim(value, " \r\n") // Will not make input lowercase (untested)
 		return handleDualInput(command, value, net)
 	} else {
@@ -149,5 +148,6 @@ func exit(test int) string {
 func help() string {
 	return "Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
 		    "Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
-		    "Exit -Terminates the node. " + "\n"
+			"Forget - Takes the hash of the object that is no longer to be refreshed"     + "\n" +
+			"Exit -Terminates the node. " + "\n"
 }

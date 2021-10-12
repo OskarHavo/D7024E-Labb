@@ -15,7 +15,7 @@ func TestNewBucket(t *testing.T) {
 	if output1 != groundtruth1 {
 		t.Errorf("Type from newBucket is not Bucket")
 	} else {
-		fmt.Println("TestNewBucket = Passed") // -v must be added to go test for prints to appear.
+		fmt.Println("TestNewBucket = Passed")
 	}
 }
 func testIfBucket(t interface{}) bool{
@@ -26,8 +26,7 @@ func testIfBucket(t interface{}) bool{
 			return false
 	}
 }
-// Tests so that adding a contact increases the length of the bucket.
-// Also tests Len()
+// Tests so that adding a contact increases the length of the bucket. Also tests Len()
 func TestAddContact(t *testing.T) {
 	// Setup
 	testBucket := newBucket()
@@ -41,7 +40,7 @@ func TestAddContact(t *testing.T) {
 	if output1 != groundtruth1 {
 		t.Errorf("Answer was incorrect, got: %d, want: %d.", output1, groundtruth1)
 	} else {
-		fmt.Println("TestAddContact = Passed") // -v must be added to go test for prints to appear.
+		fmt.Println("TestAddContact = Passed")
 	}
 }
 
@@ -60,7 +59,7 @@ func TestContains(t *testing.T) {
 	if output1 != groundtruth1 {
 		t.Errorf("Element is not returned correctly")
 	} else {
-		fmt.Println("TestContains = Passed") // -v must be added to go test for prints to appear.
+		fmt.Println("TestContains = Passed")
 	}
 }
 
@@ -79,6 +78,6 @@ func TestGetContactsAndCalcDistances(t *testing.T) {
 	if output1 != groundtruth1 {
 		t.Errorf("The calculated distance is nil")
 	} else {
-		fmt.Println("TestGetContactsAndCalcDistances = Passed") // -v must be added to go test for prints to appear.
+		fmt.Println("TestGetContactsAndCalcDistances = Passed")
 	}
 }

@@ -1,14 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"testing"
 )
-
-func TestNewContact(t *testing.T) {
-	fmt.Println("This import is not unused >:(")
-}
 
 func TestContact_CalcDistance(t *testing.T) {
 	type args struct {
@@ -20,14 +15,13 @@ func TestContact_CalcDistance(t *testing.T) {
 		args args
 		want *KademliaID
 	}{
-		{"equal distance",args{(*KademliaID)(make([]byte,ID_LEN)),(*KademliaID)(make([]byte,ID_LEN))},(*KademliaID)(make([]byte,ID_LEN))},
+		{"Equal distance",args{(*KademliaID)(make([]byte,ID_LEN)),(*KademliaID)(make([]byte,ID_LEN))},(*KademliaID)(make([]byte,ID_LEN))},
 		{"1 bit distance",args{(*KademliaID)([]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}),(*KademliaID)(make([]byte,ID_LEN))},(*KademliaID)([]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T){
 
 			contactA := NewContact(tt.args.ID_1,"")
-
 			contactA.CalcDistance(tt.args.ID_2)
 
 			if !contactA.distance.Equals(tt.want) {
@@ -41,7 +35,6 @@ func TestContact_Less(t *testing.T) {
 	type fields struct {
 		ID       *KademliaID
 		Address  string
-		//distance *KademliaID
 	}
 	type args struct {
 		otherContact Contact

@@ -24,9 +24,6 @@ func TestRoutingTable(t *testing.T) {
 	rt.AddContact(result[6])
 	rt.AddContact(result[0])
 
-
-
-
 	t.Run("Closest", func(t *testing.T) {
 		contacts := rt.FindClosestContacts(NewKademliaID("0000000000000000000000000000000000000000"), 20)
 
