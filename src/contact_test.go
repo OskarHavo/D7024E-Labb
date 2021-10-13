@@ -5,16 +5,21 @@ import (
 	"testing"
 )
 
+// Test the distance calc function with equal distance and one bit difference
 func TestContact_CalcDistance(t *testing.T) {
+	// Start IDs
 	type args struct {
 		ID_1 *KademliaID
 		ID_2 *KademliaID
 	}
+
+	// Test data structure
 	tests := []struct {
 		name string
 		args args
-		want *KademliaID
+		want *KademliaID	// Target ID for the test
 	}{
+		// Two test cases
 		{"Equal distance",args{(*KademliaID)(make([]byte,ID_LEN)),(*KademliaID)(make([]byte,ID_LEN))},(*KademliaID)(make([]byte,ID_LEN))},
 		{"1 bit distance",args{(*KademliaID)([]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}),(*KademliaID)(make([]byte,ID_LEN))},(*KademliaID)([]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1})},
 	}
@@ -31,11 +36,14 @@ func TestContact_CalcDistance(t *testing.T) {
 	}
 }
 
+// Test the Less function
 func TestContact_Less(t *testing.T) {
+	// First contact for the test
 	type fields struct {
 		ID       *KademliaID
 		Address  string
 	}
+	// The other contact
 	type args struct {
 		otherContact Contact
 		target *KademliaID
@@ -62,7 +70,6 @@ func TestContact_Less(t *testing.T) {
 			args{Contact{ID: (*KademliaID)([]byte{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255})},
 				(*KademliaID)(make([]byte,ID_LEN))},
 			true},
-
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -79,6 +86,7 @@ func TestContact_Less(t *testing.T) {
 	}
 }
 
+// Just test if the string function works. Nothing fancy here
 func TestContact_String(t *testing.T) {
 	ip := net.ParseIP("0.0.0.0")
 	type fields struct {
@@ -107,6 +115,8 @@ func TestContact_String(t *testing.T) {
 	}
 }
 
+// Check if it is possible to append a list of contacts. Nothing fancy here. I don't even bother to see if the
+// contact information has been stored correctly.
 func TestContactCandidates_Append(t *testing.T) {
 	type fields struct {
 		contacts []Contact
@@ -136,6 +146,8 @@ func TestContactCandidates_Append(t *testing.T) {
 	}
 }
 
+// Check if it is possible to append a contact. Nothing fancy here. I don't even bother to see if the
+// contact information has been stored correctly.
 func TestContactCandidates_AppendContact(t *testing.T) {
 	type args struct {
 		contact Contact
@@ -164,6 +176,7 @@ func TestContactCandidates_AppendContact(t *testing.T) {
 	}
 }
 
+// Test if it is possible to request more contacts than the max value in a routing table.
 func TestContactCandidates_GetContacts(t *testing.T) {
 	type fields struct {
 		contacts []Contact
@@ -193,6 +206,7 @@ func TestContactCandidates_GetContacts(t *testing.T) {
 	}
 }
 
+// Just see if the length of contact candidates can be retrieved.
 func TestContactCandidates_Len(t *testing.T) {
 	type fields struct {
 		contacts []Contact
@@ -217,6 +231,7 @@ func TestContactCandidates_Len(t *testing.T) {
 	}
 }
 
+// Swap the order of two contacts.
 func TestContactCandidates_Swap(t *testing.T) {
 	type fields struct {
 		contacts []Contact
@@ -268,7 +283,6 @@ func TestContactCandidates_Contains(t *testing.T) {
 		args   args
 		want   bool
 	}{
-		{"Does not contain",fields{[]Contact{}},args{contact: Contact{ID: NewKademliaIDFromData("my ID")}},false},
 		{"Does not contain",fields{[]Contact{}},args{contact: Contact{ID: NewKademliaIDFromData("my ID")}},false},
 		{"Contains",fields{[]Contact{{ID: NewKademliaIDFromData("my ID")}}},args{contact: Contact{ID: NewKademliaIDFromData("my ID")}},true},
 	}

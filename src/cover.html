@@ -57,19 +57,19 @@
 				
 				<option value="file0">d7024e/bucket.go (100.0%)</option>
 				
-				<option value="file1">d7024e/cli.go (60.3%)</option>
+				<option value="file1">d7024e/cli.go (56.6%)</option>
 				
 				<option value="file2">d7024e/contact.go (100.0%)</option>
 				
 				<option value="file3">d7024e/http.go (85.0%)</option>
 				
-				<option value="file4">d7024e/kademlia.go (60.0%)</option>
+				<option value="file4">d7024e/kademlia.go (89.7%)</option>
 				
 				<option value="file5">d7024e/kademliaid.go (100.0%)</option>
 				
-				<option value="file6">d7024e/message_service.go (76.5%)</option>
+				<option value="file6">d7024e/message_service.go (72.9%)</option>
 				
-				<option value="file7">d7024e/network.go (89.5%)</option>
+				<option value="file7">d7024e/network.go (90.1%)</option>
 				
 				<option value="file8">d7024e/routingtable.go (84.1%)</option>
 				
@@ -118,11 +118,9 @@ func (bucket *bucket) AddContact(contact Contact) <span class="cov8" title="1">{
         }
         <span class="cov8" title="1">if element == nil </span><span class="cov8" title="1">{
                 if bucket.list.Len() &lt; k </span><span class="cov8" title="1">{
-                        //fmt.Println("Adding new node " + contact.ID.String() + " to front of bucket!")
                         bucket.list.PushFront(contact)
                 }</span>
         } else<span class="cov8" title="1"> {
-                //fmt.Println("Moving node " + contact.ID.String() + " to front of bucket!")
                 bucket.list.MoveToFront(element)
         }</span>
 }
@@ -137,7 +135,6 @@ func (bucket *bucket) Contains(contact *Contact)  *list.Element <span class="cov
                         element = e
                 }</span>
         }
-
         <span class="cov8" title="1">return element</span>
 }
 
@@ -150,7 +147,6 @@ func (bucket *bucket) GetContactsAndCalcDistances(target *KademliaID) []Contact 
                 contact.CalcDistance(target)
                 contacts = append(contacts, contact)
         }</span>
-
         <span class="cov8" title="1">return contacts</span>
 }
 
@@ -168,6 +164,7 @@ import (
         "net"
         "os"
         "strings"
+        "time"
 )
 // Entrypoint
 func main() <span class="cov0" title="0">{
@@ -185,18 +182,30 @@ func main() <span class="cov0" title="0">{
                         }</span>
                 }
         }
-        <span class="cov0" title="0">net := NewNetwork(&amp;IP, NewMessageService(false,nil))
-        fmt.Println("Started node with ID " + net.localNode.routingTable.me.ID.String())
+        <span class="cov0" title="0">network := NewNetwork(&amp;IP, NewMessageService(false,nil))
+        fmt.Println("Started node with ID " + network.localNode.routingTable.me.ID.String())
         fmt.Println("Node has IP address " + IP.String())
-        go net.Listen()
-        go net.HTTPlisten()
-        go net.Remember()
-        go net.localNode.UpdateTTL()
+        //Create Threads.
+        go network.Listen()
+        go network.HTTPlisten()
+        go network.Remember()
+        go network.localNode.UpdateTTL()
 
-        for </span><span class="cov0" title="0">{
+        // Brute force method for joining a network automatically
+        now := time.Now()
+        var join_IP net.IP
+        join_IP = IP
+        join_IP[15] = IP[15]+1
+        join_ID := NewKademliaIDFromIP(&amp;join_IP)
+        for ;time.Now().Before(now.Add(60*time.Second)); </span><span class="cov0" title="0">{
+                if network.Join(join_ID,join_IP.To4().String()) == nil </span><span class="cov0" title="0">{
+                        break</span>
+                }
+        }
+        <span class="cov0" title="0">for </span><span class="cov0" title="0">{
                 fmt.Printf("\n Enter a command: ")
                 rawInput, _ := bufio.NewReader(os.Stdin).ReadString('\n') // Takes rawinput from console.
-                output := parseInput(rawInput, &amp;net)
+                output := parseInput(rawInput, &amp;network)
                 fmt.Println("Returned output:\n" + output)
         }</span>
 }
@@ -218,7 +227,6 @@ func parseInput(input string, net *Network) string <span class="cov8" title="1">
         // Dual input
         <span class="cov8" title="1">if len(stringinput) &gt; 1 </span><span class="cov8" title="1">{ // Checks if you have 1 or 2 Commands and then runs the correct function accordingly.
                 value = stringinput[1]
-                // value = strings.ToLower(strings.Trim(value, " \r\n"))
                 value = strings.Trim(value, " \r\n") // Will not make input lowercase (untested)
                 return handleDualInput(command, value, net)
         }</span> else<span class="cov8" title="1"> {
@@ -242,7 +250,11 @@ func handleDualInput(command string, value string, network *Network) string <spa
         case "put":<span class="cov8" title="1">
                 return put(value, network)</span>
         case "join":<span class="cov8" title="1">
-                IP := net.ParseIP(value)[12:]
+                IP := net.ParseIP(value)
+                if IP == nil </span><span class="cov8" title="1">{
+                        return "Invalid IP address format"
+                }</span>
+                <span class="cov8" title="1">IP = IP[12:]
                 ID := NewKademliaIDFromIP(&amp;IP)
                 err := network.Join(ID, value)
                 if err == nil </span><span class="cov8" title="1">{
@@ -251,11 +263,17 @@ func handleDualInput(command string, value string, network *Network) string <spa
                         return err.Error()
                 }</span>
         case "get":<span class="cov8" title="1">
-                outputNodeID, outputContent := get(value, network)
+                if len(value) != 40 </span><span class="cov8" title="1">{
+                        return "Invalid hash length"
+                }</span>
+                        <span class="cov8" title="1">outputNodeID, outputContent := get(value, network)
                 outputString := ("NodeID: " + outputNodeID + "  Content: " + outputContent)
                 return outputString</span>
         case "forget":<span class="cov0" title="0">
-                network.localNode.Forget(NewKademliaID(value))
+                if len(value) != 40 </span><span class="cov0" title="0">{
+                        return "Invalid hash length"
+                }</span>
+                <span class="cov0" title="0">network.localNode.Forget(NewKademliaID(value))
                 return "Forgot data with hash: " + value</span>
         default:<span class="cov8" title="1">
                 return "INVALID COMMAND, TYPE HELP"</span>
@@ -278,7 +296,7 @@ func get(hashValue string, net *Network) (string, string) <span class="cov8" tit
         // TODO What ID should this be?
         if data != nil </span><span class="cov8" title="1">{
                 return nodes[0].ID.String(),string(data)
-        }</span> else<span class="cov8" title="1"> if len(nodes) &gt; 0</span><span class="cov0" title="0">{
+        }</span> else<span class="cov8" title="1"> if len(nodes) &gt; 0</span><span class="cov8" title="1">{
                 return nodes[0].ID.String(), ("Hashvalue Does Not Exist In The Network")
         }</span> else<span class="cov8" title="1"> {
                 return "[NULL]", ("Could not find node or data in the network")
@@ -298,7 +316,8 @@ func exit(test int) string <span class="cov8" title="1">{
 func help() string <span class="cov8" title="1">{
         return "Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
                     "Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
-                    "Exit -Terminates the node. " + "\n"
+                        "Forget - Takes the hash of the object that is no longer to be refreshed"     + "\n" +
+                        "Exit -Terminates the node. " + "\n"
 }</pre>
 		
 		<pre class="file" id="file2" style="display: none">package main
@@ -321,8 +340,7 @@ func NewContact(id *KademliaID, address string) Contact <span class="cov8" title
         return Contact{id, address, nil}
 }</span>
 
-// CalcDistance calculates the distance to the target and 
-// fills the contacts distance field
+// CalcDistance calculates the distance to the target and fills the contacts distance field
 func (contact *Contact) CalcDistance(target *KademliaID) <span class="cov8" title="1">{
         contact.distance = contact.ID.CalcDistance(target)
 }</span>
@@ -338,7 +356,7 @@ func (contact *Contact) String() string <span class="cov8" title="1">{
 }</span>
 
 // ContactCandidates definition
-// stores an array of Contacts
+// Stores an array of Contacts
 type ContactCandidates struct {
         contacts []Contact
 }
@@ -388,18 +406,6 @@ func (candidates *ContactCandidates) Less(i, j int) bool <span class="cov8" titl
 // candidates have been sorted and have calculated distances to the target node.
 // No consideration is taken for unsorted contacts or contacts with improper distance.
 func (candidates *ContactCandidates) Contains(contact *Contact) bool <span class="cov8" title="1">{
-        /*
-        for i := 0; i &lt; candidates.Len(); i++ {
-                if !candidates.contacts[i].Less(contact) {
-                        if candidates.contacts[i].distance.Equals(contact.distance) {
-                                // The contact exists among the candidates
-                                return true
-                        } else {
-                                // The contact is not among the candidates
-                                return false
-                        }
-                }
-        }*/
         for i := 0; i &lt; candidates.Len(); i++ </span><span class="cov8" title="1">{
                 if candidates.contacts[i].ID.Equals(contact.ID) </span><span class="cov8" title="1">{
                         return true
@@ -522,12 +528,13 @@ type Node struct {
         storage map[KademliaID][]byte
         routingTable *RoutingTable
 
-        // map that contains the time-to-live of each data object in storage
+        // Map that contains the time-to-live of each data object in storage
         ttl map[KademliaID]int
 
-        // a list of maximum k contacts that should be refreshed for some data object in storage until
+        // A list of maximum k contacts that should be refreshed for some data object in storage until
         // it is forgotten
         refreshContacts map[KademliaID][]Contact
+        refreshMutex sync.Mutex
 
         storateMutex sync.Mutex
 }
@@ -535,7 +542,7 @@ type Node struct {
 // Create a new Node
 func NewNode(ID Contact) Node <span class="cov8" title="1">{
         return Node{make(map[KademliaID][]byte), NewRoutingTable(ID),
-                make(map[KademliaID]int), make(map[KademliaID][]Contact), sync.Mutex{}}
+                make(map[KademliaID]int), make(map[KademliaID][]Contact), sync.Mutex{},sync.Mutex{}}
 }</span>
 
 // Local lookup of the size closest contacts to some target kademlia ID
@@ -566,17 +573,16 @@ func (kademlia *Node) Store(data []byte, hash *KademliaID) <span class="cov8" ti
 }
 
 // Delete data stored at some hash
-func (kademlia *Node) Delete(hash *KademliaID) <span class="cov0" title="0">{
+func (kademlia *Node) Delete(hash *KademliaID) <span class="cov8" title="1">{
         kademlia.storateMutex.Lock()
         defer kademlia.storateMutex.Unlock()
-        if kademlia.storage[*hash] != nil </span><span class="cov0" title="0">{ // Only delete if there is actually something there
+        if kademlia.storage[*hash] != nil </span><span class="cov8" title="1">{ // Only delete if there is actually something there
                 delete(kademlia.storage, *hash) // Delete the data
                 delete(kademlia.ttl, *hash) // Delete the ttl associated with the data
         }</span>
 }
 
-// Refresh will update the ttl associated with some data by setting it to some system-wide
-// predetermined parameter
+// Refresh will update the ttl associated with some data by setting it to some system-wide predetermined parameter
 func (kademlia *Node) Refresh(hash *KademliaID) <span class="cov0" title="0">{
         if kademlia.ttl[*hash] != 0 </span><span class="cov0" title="0">{ // Can't refresh something that is already dead
                 kademlia.ttl[*hash] = TIME_TO_LIVE
@@ -589,8 +595,10 @@ func (kademlia *Node) Refresh(hash *KademliaID) <span class="cov0" title="0">{
 // Forget will remove the contacts associated to some data hash, which means no more refreshRPCs
 // will be sent to those contacts and the data will eventually be deleted by the contacts, including
 // "this node" if it is one of the associated ones
-func (kademlia *Node) Forget(hash *KademliaID) <span class="cov0" title="0">{
-        if len(kademlia.refreshContacts[*hash]) != 0 </span><span class="cov0" title="0">{
+func (kademlia *Node) Forget(hash *KademliaID) <span class="cov8" title="1">{
+        kademlia.refreshMutex.Lock()
+        defer kademlia.refreshMutex.Unlock()
+        if len(kademlia.refreshContacts[*hash]) != 0 </span><span class="cov8" title="1">{
                 delete(kademlia.refreshContacts, *hash)
         }</span>
 }
@@ -598,6 +606,8 @@ func (kademlia *Node) Forget(hash *KademliaID) <span class="cov0" title="0">{
 // RememberContacts remembers which contacts are associated to some data hash
 // so that they can be refreshed in the future
 func (kademlia *Node) RememberContacts(hash *KademliaID, contacts []Contact) <span class="cov8" title="1">{
+        kademlia.refreshMutex.Lock()
+        defer kademlia.refreshMutex.Unlock()
         if len(kademlia.refreshContacts[*hash]) == 0 </span><span class="cov8" title="1">{
                 kademlia.refreshContacts[*hash] = contacts
         }</span>
@@ -619,11 +629,9 @@ const ID_LEN = 20
 type KademliaID [ID_LEN]byte
 
 func sha1Hash(content string) []byte <span class="cov8" title="1">{
-        // https://gobyexample.com/sha1-hashes
         h := sha1.New()
         h.Write([]byte(content))
         hashedFileBytes := h.Sum(nil)
-        //hashedFileString := hex.EncodeToString(hashedFileBytes) // Encode byte[] to string before entering it into the hashmap.
         return hashedFileBytes
 }</span>
 
@@ -638,9 +646,8 @@ func NewKademliaID(data string) *KademliaID <span class="cov8" title="1">{
 
         <span class="cov8" title="1">return &amp;newKademliaID</span>
 }
-
+// NewKademliaIDFromData returns a new instance of a KademliaID based on the hash input
 func NewKademliaIDFromData(data string) *KademliaID <span class="cov8" title="1">{
-        //decoded, _ := hex.DecodeString(data)
         decoded := sha1Hash(data)
 
         newKademliaID := KademliaID{}
@@ -653,7 +660,6 @@ func NewKademliaIDFromData(data string) *KademliaID <span class="cov8" title="1"
 
 // Create kademlia ID from an IP address, for example a node.
 func NewKademliaIDFromIP(ip *net.IP) *KademliaID <span class="cov8" title="1">{
-        //decoded, _ := hex.DecodeString(ip.String())
         decoded := sha1Hash(ip.String())
         newKademliaID := KademliaID{}
         for i := 0; i &lt; ID_LEN; i++ </span><span class="cov8" title="1">{
@@ -711,12 +717,15 @@ import (
         "time"
 )
 
+// This is our solution for simulated network UP messages.
+// The message service can eithe be configured to create real network connections or fake ones.
 type Message_service struct {
         use_fake  bool
         home_addr *net.UDPAddr
         log_shannel chan string
 }
 
+// This is a simulated network connection.
 type Connection struct {
         conn *net.UDPConn
         use_fake bool
@@ -724,12 +733,16 @@ type Connection struct {
         send_IP string
         receive_channel chan string
         receive_IP string
+        readDeadline time.Time
+        hasDeadline bool
 }
 
 func NewMessageService(use_fake bool, home_addr *net.UDPAddr) *Message_service <span class="cov8" title="1">{
         return &amp;Message_service{use_fake: use_fake, home_addr: home_addr,log_shannel: make(chan string)}
 }</span>
 
+// This is a global data structure that keeps track of all available connections.
+// Kademlia nodes that start to listen will advertise their connection channel here
 var comm_mutex sync.Mutex
 var global_map map[string] chan string = make(map[string] chan string)
 
@@ -738,17 +751,16 @@ func (ms_service *Message_service) ListenUDP(udp string, addr *net.UDPAddr) (Con
                 conn, err := net.ListenUDP(udp,addr)
                 return Connection{conn: conn, use_fake: ms_service.use_fake}, err
         }</span> else<span class="cov8" title="1"> {
-                receive_ID := ms_service.home_addr.IP.To4().String() + ":5001"
-                // TODO
+                // Start to listen for a fake UDP connection
+
+                receive_ID := ms_service.home_addr.IP.To4().String() + ":5001"        // Create a fake port and IP combo
                 comm_mutex.Lock()
                 if global_map[receive_ID] == nil </span><span class="cov8" title="1">{
                         global_map[receive_ID] = make(chan string)
                 }</span>
                 <span class="cov8" title="1">comm_mutex.Unlock()
-                //fmt.Println(receive_ID,"        : Listening to UDP")
                 select </span>{
-                case s := &lt;-global_map[receive_ID]:<span class="cov8" title="1">
-                        //fmt.Println(receive_ID,"        : Received connection from ", s)
+                case s := &lt;-global_map[receive_ID]:<span class="cov8" title="1">        // Start to listen for 1 second before timeout.
                         return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: global_map[receive_ID],receive_IP: receive_ID, send_channel: global_map[s],send_IP: s}, nil</span>
                 case &lt;-time.After(1*time.Second):<span class="cov8" title="1">
                         return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: nil}, errors.New("listened, but nobody answered")</span>
@@ -756,6 +768,7 @@ func (ms_service *Message_service) ListenUDP(udp string, addr *net.UDPAddr) (Con
         }
 }
 
+// Create an IP address from a string. There was a problem with fake IPs but I can't rememever what. This fixes that.
 func (ms_service *Message_service) ResolveUDPAddr(udp string, service string) (*net.UDPAddr, error)<span class="cov8" title="1">{
         if ms_service.use_fake </span><span class="cov8" title="1">{
                 serv := strings.Split(service, ":")
@@ -771,22 +784,23 @@ func (ms_service *Message_service) DialUDP(network string, laddr *net.UDPAddr, r
                 conn, err := net.DialUDP(network,laddr,raddr)
                 return Connection{conn: conn,use_fake: ms_service.use_fake}, err
         }</span> else<span class="cov8" title="1"> {
+                // Dial to a fake UDP connection.
+
+                // Set up our own channel for incoming messages.
                 var port = rand.Intn(1000000)        // This is our temporary return address.
                 home_addr := ms_service.home_addr.IP.To4().String() + ":" + strconv.FormatInt(int64(port), 10)
-                //fmt.Println("-----------------------------", raddr)
                 send_ID := raddr.IP.To4().String() + ":5001"
-                //fmt.Println(home_addr, "        : Connecting to UDP address ", send_ID)
+
                 comm_mutex.Lock()
                 if global_map[send_ID] == nil </span><span class="cov8" title="1">{
                         comm_mutex.Unlock()
                         return Connection{conn: nil,use_fake: ms_service.use_fake}, errors.New("failed to dial udp")
                 }</span> else<span class="cov8" title="1"> {
-                        //fmt.Println(home_addr, "        : Established connection at dialUDP to ",send_ID)
                         global_map[home_addr] = make(chan string)
                         comm_mutex.Unlock()
 
                         select </span>{
-                        case global_map[send_ID] &lt;- home_addr:<span class="cov8" title="1">
+                        case global_map[send_ID] &lt;- home_addr:<span class="cov8" title="1">        // Try call the other node.
                                 return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: global_map[home_addr], receive_IP: home_addr, send_channel: global_map[send_ID], send_IP: send_ID}, nil</span>
                         case &lt;-time.After(1 * time.Second):<span class="cov8" title="1">
                                 return Connection{conn: nil, use_fake: ms_service.use_fake, receive_channel: nil, receive_IP: home_addr, send_channel: nil, send_IP: send_ID}, errors.New("failed to dial udp")</span>
@@ -796,11 +810,12 @@ func (ms_service *Message_service) DialUDP(network string, laddr *net.UDPAddr, r
         }
 }
 
-func (connection *Connection) SetReadDeadline(time time.Time) <span class="cov8" title="1">{
+func (connection *Connection) SetReadDeadline(t time.Time) <span class="cov8" title="1">{
         if !connection.use_fake </span><span class="cov0" title="0">{
-                connection.conn.SetReadDeadline(time)
-        }</span> else <span class="cov8" title="1">{
-                // TODO
+                connection.conn.SetReadDeadline(t)
+        }</span> else<span class="cov8" title="1"> {
+                connection.readDeadline = t
+                connection.hasDeadline = true
         }</span>
 }
 
@@ -808,24 +823,32 @@ func (connection *Connection) ReadFromUDP(msg []byte) (n int, addr *net.UDPAddr,
         if !connection.use_fake </span><span class="cov0" title="0">{
                 return connection.conn.ReadFromUDP(msg)
         }</span> else<span class="cov8" title="1"> {
-                // TODO Add read timeout
-                //fmt.Println(connection.receive_IP, "        : Starting to read from UDP channel ")
 
-                select </span>{
-                case data := &lt;- connection.receive_channel:<span class="cov8" title="1">
-                        copy(msg, []byte(data))
-                        return len(msg),&amp;net.UDPAddr{IP: net.ParseIP(connection.send_IP)},nil</span>
-                        case &lt;- time.After(1*time.Second):<span class="cov0" title="0">
+                if connection.hasDeadline </span><span class="cov8" title="1">{
+                        connection.hasDeadline = false
+
+                        // Read with a timeout.
+                        select </span>{
+                        case data := &lt;- connection.receive_channel:<span class="cov8" title="1">
+                                copy(msg, []byte(data))
+                                return len(msg),&amp;net.UDPAddr{IP: net.ParseIP(connection.send_IP)},nil</span>
+                        case &lt;- time.After(connection.readDeadline.Sub(time.Now())):<span class="cov0" title="0">
                                 return 0,&amp;net.UDPAddr{IP: net.ParseIP(connection.send_IP)},errors.New("Could not read from UDP")</span>
-                }
+                        }
+                } else<span class="cov0" title="0"> {
+                        // Don't set a read timeout.
+                        data := &lt;- connection.receive_channel
+                        copy(msg, []byte(data))
+                        return len(msg),&amp;net.UDPAddr{IP: net.ParseIP(connection.send_IP)},nil
+                }</span>
         }
 }
 
 func (connection *Connection) WriteToUDP(b []byte, addr *net.UDPAddr) (int, error) <span class="cov8" title="1">{
+        // TODO We don't have a write deadline. One second is the default right now
         if !connection.use_fake </span><span class="cov0" title="0">{
                 return connection.conn.WriteToUDP(b,addr)
         }</span> else<span class="cov8" title="1"> {
-                //fmt.Println(connection.receive_IP, "        : Starting to write to UDP channel", connection.send_IP)
                 select </span>{
                 case connection.send_channel &lt;- string(b):<span class="cov8" title="1">
                         return len(b),nil</span>
@@ -836,30 +859,23 @@ func (connection *Connection) WriteToUDP(b []byte, addr *net.UDPAddr) (int, erro
 }
 
 func (connection *Connection) Write(b []byte) (int, error) <span class="cov8" title="1">{
+        // TODO We don't have a write deadline. One second is the default right now
         if !connection.use_fake </span><span class="cov0" title="0">{
                 return connection.conn.Write(b)
         }</span> else<span class="cov8" title="1"> {
-                connection.send_channel &lt;- string(b)
-                return len(b),nil
-        }</span>
+                select </span>{
+                case connection.send_channel &lt;- string(b):<span class="cov8" title="1">
+                        return len(b),nil</span>
+                case &lt;- time.After(1*time.Second):<span class="cov0" title="0">
+                        return 0, errors.New("Could not write to UDP")</span>
+                }
+        }
 }
 
+// This only works for real connections.
 func (connection *Connection) Close() <span class="cov8" title="1">{
         if !connection.use_fake </span><span class="cov0" title="0">{
                 connection.conn.Close()
-        }</span> else <span class="cov8" title="1">{
-                /*
-                i := 0
-                for key,value := range global_map {
-                        if value == connection.send_channel || value == connection.receive_channel{
-                                i++
-                                delete(global_map, key)
-                        }
-                        if i == 2 {
-                                return
-                        }
-                }
-                 */
         }</span>
 }</pre>
 		
@@ -879,47 +895,47 @@ import (
 // 000: PING
 // 010: STORE
 // 100: FIND_NODE
-// 110: FIND_VALUE
+// 110: FIND_DATA
 // Followed by a 20 byte ID of needed and data for STORE command
 // 2 bit + 20 byte +
 
 // Protocol for returning information:
 // PING_ACK: Contains nothing
 
-// STORE_ACK: Not sure if this is a requirement. We can probably skip it
+// STORE_ACK: Not needed and therefore not implemented. The local node in kademlia doesn't care if the
+//                           value is successfully stored or not
 
 // FIND_NODE_ACK: Nodes are stored in tuples with &lt;IP, NODE_ID&gt; in a long list without description of how many nodes there are.
 //                 We already know the size of each tuple and the size of the array -&gt; size/tuple_bytes = number of tuples
 
-// FIND_VALUE_ACK: message type followed by one byte indicating a list of nodes or some actual data.
+// FIND_DATA_ACK: message type followed by one byte indicating a list of nodes or some actual data.
 //                 0: Found no data. Returns &lt;=K closest nodes
 //                 1: Found data. Returns the full byte array
 
 // Golang doesn't have enums, this the closest alternative I could find
 const (
-        PING byte = iota
-        PING_ACK byte = iota
+        PING byte = 0
+        PING_ACK byte = 1
 
-        STORE byte = iota
-        //STORE_ACK byte = iota
+        STORE byte = 2
 
-        FIND_NODE byte = iota
-        FIND_NODE_ACK byte = iota
+        FIND_NODE byte = 4
+        FIND_NODE_ACK byte = 5
 
-        FIND_DATA byte = iota
-        FIND_DATA_ACK_SUCCESS byte = iota
-        FIND_DATA_ACK_FAIL byte = iota
+        REFRESH_DATA_TTL = 6
 
-        REFRESH_DATA_TTL = iota
+        FIND_DATA byte = 8
+        FIND_DATA_ACK_SUCCESS byte = 9
+        FIND_DATA_ACK_FAIL byte = 10
 )
 
-const MAX_PACKET_SIZE = 1024
-const IP_LEN = 4
-const HEADER_LEN = 1
-const BUCKET_HEADER_LEN = 1
-const TIMEOUT = 5000
-
-const KAD_PORT = "5001"
+// Message communication constants
+const MAX_PACKET_SIZE = 1024 // Maximum size of a byte array
+const IP_LEN = 4 // Length of IP address in bytes
+const HEADER_LEN = 1 // Length of message type indicator in bytes
+const BUCKET_HEADER_LEN = 1 // Length of bucket size indicator in bytes
+const TIMEOUT = 50 // Amount of time before a i/o timeout is issued in milliseconds
+const KAD_PORT = "5001" // Port number used for communication between nodes
 
 type Network struct {
         localNode Node
@@ -945,8 +961,7 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, add
         bucket := network.localNode.LookupContact(targetID, k + 1)
         bucket = removeSelfOrTail(requesterID, bucket, len(bucket) == k + 1)
 
-        fmt.Println("Received a FIND_NODE request from node", requesterID,
-                "with a target ID", targetID)
+        //fmt.Println("Received a FIND_NODE request from node", requesterID, "with a target ID", targetID)
 
         // 1 byte for type of msg, 1 byte for number of contacts
         var reply = make([]byte, HEADER_LEN+BUCKET_HEADER_LEN+(ID_LEN+IP_LEN)*len(bucket))
@@ -980,12 +995,11 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, add
 
 // unpackMessage handles all kademlia requests from other nodes.
 func (network *Network) unpackMessage(msg []byte, connection Connection, address *net.UDPAddr) error <span class="cov8" title="1">{
-        defer connection.Close()
         switch messageType := msg[0]; messageType </span>{
         case PING:<span class="cov8" title="1">
-                requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+                //requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
-                fmt.Println("Received a PING request from node", requesterID.String())
+                //fmt.Println("Received a PING request from node", requesterID.String())
                 reply := make([]byte, HEADER_LEN)
                 reply[0] = PING_ACK
 
@@ -1003,7 +1017,7 @@ func (network *Network) unpackMessage(msg []byte, connection Connection, address
                 // REC:  [MSG TYPE, REQUESTER ID, HASH]
                 // SEND: [MSG TYPE, REQUESTER ID, BUCKET SIZE, BUCKET:[ID, IP]]
                 //   OR  [MSG TYPE, DATA]
-                fmt.Println("Received a FIND_DATA request")
+                //fmt.Println("Received a FIND_DATA request")
                 hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
                 data := network.localNode.LookupData(hash)
                 if data != nil </span><span class="cov8" title="1">{
@@ -1023,10 +1037,10 @@ func (network *Network) unpackMessage(msg []byte, connection Connection, address
                 // Message format:
                 // REC: [MSG TYPE, REQUESTER ID, HASH, DATA...]
                 // SEND: nothing
-                requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+                //requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
                 hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
                 data := msg[HEADER_LEN+ID_LEN+ID_LEN:MAX_PACKET_SIZE]
-                fmt.Println("Received a STORE request from node", requesterID.String())
+                //fmt.Println("Received a STORE request from node", requesterID.String())
 
                 network.localNode.Store(data, hash)
                 return nil</span>
@@ -1034,14 +1048,14 @@ func (network *Network) unpackMessage(msg []byte, connection Connection, address
                 // Message format:
                 // SEND: [MSG TYPE, REQUESTER ID, REFRESH HASH]
                 // REC: nothing
-                requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+                //requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
                 hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
-                fmt.Println("Received a REFRESH request from node", requesterID.String())
+                //fmt.Println("Received a REFRESH request from node", requesterID.String())
 
                 network.localNode.Refresh(hash)
                 return nil</span>
         }
-        <span class="cov0" title="0">return errors.New("received unknown request")</span>
+        <span class="cov8" title="1">return errors.New("received unknown request")</span>
 }
 
 // Listen listens for incoming requests. Once a message is received it is directed to unpackMessage.
@@ -1053,27 +1067,28 @@ func (network *Network) Listen() <span class="cov8" title="1">{
                 conn, err := network.ms_service.ListenUDP("udp", &amp;net.UDPAddr{
                         Port: 5001,
                 })
+
                 if err == nil </span><span class="cov8" title="1">{
                         msg := make([]byte, MAX_PACKET_SIZE)
+                        conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
                         _, addr, err := conn.ReadFromUDP(msg)
-                                if err != nil </span><span class="cov0" title="0">{
-                                        fmt.Println("Could not read incoming message")
-                                        fmt.Println(err.Error())
-                                }</span> else<span class="cov8" title="1"> {
-                                        go func() </span><span class="cov8" title="1">{
-                                                ID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
-                                                contact := NewContact(ID,addr.IP.To4().String())
-                                                network.kickTheBucket(&amp;contact)
+                        if err != nil </span><span class="cov0" title="0">{
+                                conn.Close()
+                        }</span> else<span class="cov8" title="1"> {
+                                ID := (*KademliaID)(msg[HEADER_LEN : HEADER_LEN+ID_LEN])
 
-                                                network.unpackMessage(msg,conn,addr)
-                                        }</span>()
+                                contact := NewContact(ID, addr.IP.To4().String())
+                                network.localNode.routingTable.KickTheBucket(&amp;contact,network.Ping)
 
-                                }
+                                network.unpackMessage(msg, conn, addr)
+                                conn.Close()
+                        }</span>
                 } else<span class="cov8" title="1"> {
                         fmt.Println("Could not read from incoming connection.", err.Error())
                 }</span>
         }
+        <span class="cov8" title="1">fmt.Println("Turning off listen")</span>
 }
 
 func (network *Network) shutdown() <span class="cov8" title="1">{
@@ -1101,12 +1116,11 @@ func (network *Network) Ping(contact *Contact) bool <span class="cov8" title="1"
         start := time.Now()
         remoteAddr, err := network.ms_service.ResolveUDPAddr("udp",service)
         conn, err := network.ms_service.DialUDP("udp", nil, remoteAddr)
+        defer conn.Close()
         if err != nil </span><span class="cov8" title="1">{
                 fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
                 fmt.Println(err.Error())
                 return false
-        }</span> else<span class="cov8" title="1"> {
-                fmt.Println("Connection established to " + remoteAddr.String() + "!")
         }</span>
 
         // Setup msg and send
@@ -1119,7 +1133,6 @@ func (network *Network) Ping(contact *Contact) bool <span class="cov8" title="1"
         msg = make([]byte, HEADER_LEN)
         conn.SetReadDeadline(time.Now().Add(TIMEOUT * time.Millisecond))
         _,_,err2 := conn.ReadFromUDP(msg)
-        conn.Close()
 
         if err2 != nil </span><span class="cov0" title="0">{
                 fmt.Println("Could not read Ping message from", contact.ID.String())
@@ -1129,7 +1142,7 @@ func (network *Network) Ping(contact *Contact) bool <span class="cov8" title="1"
         <span class="cov8" title="1">duration := time.Since(start)
 
         // Update routing table with the contact that we pinged
-        network.kickTheBucket(contact)
+        network.localNode.routingTable.KickTheBucket(contact,network.Ping)
 
         if msg[0] == PING_ACK </span><span class="cov8" title="1">{
                 fmt.Println("Successful ping to " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
@@ -1237,19 +1250,20 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) <span c
 // Store sends a store msg to the 20th closest nodes a bucket
 func (network *Network) Store(data []byte, hash *KademliaID) <span class="cov8" title="1">{
         var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
-        fmt.Println("Storing data in " + strconv.FormatInt(int64(len(nodes)),10) + " external nodes")
         network.localNode.routingTable.me.CalcDistance(hash)
         if len(nodes) &lt; k </span><span class="cov8" title="1">{
+                fmt.Println("Storing data on local node")
                 nodes = append(nodes, network.localNode.routingTable.me)
         }</span> else<span class="cov0" title="0"> if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) </span><span class="cov0" title="0">{
+                fmt.Println("Storing data on local node")
                 // If the locals node distance is less than the last node in the bucket,
                 // Im actually supposed to be in the bucket and not that node.
                 nodes[len(nodes)-1] = network.localNode.routingTable.me
         }</span>
-        <span class="cov8" title="1">for _,contact := range nodes </span><span class="cov8" title="1">{ // What type of syntax is this??
+        <span class="cov8" title="1">fmt.Println("Storing data in " + strconv.FormatInt(int64(len(nodes)),10) + " total nodes")
+        for _,contact := range nodes </span><span class="cov8" title="1">{ // What type of syntax is this??
                 if network.localNode.routingTable.me.ID == contact.ID </span><span class="cov8" title="1">{
                         // No need to send a network request. Send the RPC directly to the local node thread.
-                        fmt.Println("Storing data on local node")
                         network.localNode.Store(data, hash)
                 }</span> else<span class="cov8" title="1"> {
                         // This is easily done async because we don't have to care what happens after!
@@ -1296,7 +1310,7 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) ([]C
 
                 <span class="cov8" title="1">kClosestReply := handleBucketReply(&amp;reply)
 
-                network.kickTheBucket(contact)
+                network.localNode.routingTable.KickTheBucket(contact,network.Ping)
                 return kClosestReply.GetContactsAndCalcDistances(targetID), true</span>
         }
 }
@@ -1315,7 +1329,7 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
                 fmt.Println("Could not establish connection when sending findDataRPC to " + contact.ID.String())
                 return nil, nil, false
         }</span> else<span class="cov8" title="1"> {
-                fmt.Println("Sending FIND_DATA to node ", contact.ID.String())
+                //fmt.Println("Sending FIND_DATA to node ", contact.ID.String())
 
                 msg := make([]byte, HEADER_LEN+ID_LEN+ID_LEN)
                 msg[0] = FIND_DATA
@@ -1334,7 +1348,7 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
                         return nil, nil, false
                 }</span>
 
-                <span class="cov8" title="1">network.kickTheBucket(contact)
+                <span class="cov8" title="1">network.localNode.routingTable.KickTheBucket(contact,network.Ping)
 
                 if reply[0] == FIND_DATA_ACK_FAIL </span><span class="cov8" title="1">{
                         // Message format:
@@ -1379,21 +1393,6 @@ func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []b
                 conn.Write(storeMessage)
         }</span>
         <span class="cov8" title="1">conn.Close()</span>
-}
-
-// Check if a bucket is full and then kick one node if it does not respond to a ping message.
-// Call this function whenever you want to add a new node to the routing table. The node can either
-// already exist in a bucket or be a new node.
-func (network *Network) kickTheBucket(contact *Contact) <span class="cov8" title="1">{
-        // Find the appropriate bucket and "kick" it
-        network.localNode.routingTable.KickTheBucket(contact,network.Ping)
-
-        // LOGGING, TEMP
-        fmt.Println("Routing table state after kicking the bucket:")
-        contacts := network.localNode.routingTable.FindClosestContacts(network.localNode.routingTable.me.ID, 9999)
-        for _, c := range contacts </span><span class="cov8" title="1">{
-                fmt.Println("&lt;" + c.ID.String() + ", " + c.Address + "&gt;")
-        }</span>
 }
 
 // We don't want to send back the requester its own ID so that it has itself in its own bucket.
@@ -1593,7 +1592,6 @@ func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count 
                         candidates.Append(bucket.GetContactsAndCalcDistances(target))
                 }</span>
         }
-
         <span class="cov8" title="1">candidates.Sort()
 
         if count &gt; candidates.Len() </span><span class="cov8" title="1">{
@@ -1631,7 +1629,7 @@ func (routingTable *RoutingTable)KickTheBucket(contact *Contact, ping func(*Cont
                         sacrifice := bucket.list.Back().Value.(Contact)
 
                         if ping(&amp;sacrifice) </span>{<span class="cov0" title="0">
-                                //fmt.Println("Received ping from sacrifice node. Node was not kicked from the bucket.")
+
                         }</span> else<span class="cov0" title="0"> {
                                 bucket.list.Remove(bucket.list.Back())
                                 bucket.AddContact(*contact)
@@ -1665,7 +1663,6 @@ func (kademlia *Node) UpdateTTL() <span class="cov0" title="0">{
                 for dataHash, timeToLive := range kademlia.ttl </span><span class="cov0" title="0">{
                         delta := time.Since(lastUpdated)
                         kademlia.ttl[dataHash] -= int(delta.Milliseconds())
-                        //fmt.Println("TTL:", kademlia.ttl[dataHash])
 
                         if timeToLive &lt;= 0 </span><span class="cov0" title="0">{
                                 kademlia.Delete(&amp;dataHash)
@@ -1693,10 +1690,10 @@ func (network *Network) Remember() <span class="cov0" title="0">{
                         for _, c := range contacts </span><span class="cov0" title="0">{
                                 if c.ID.Equals(network.localNode.routingTable.me.ID) </span><span class="cov0" title="0">{
                                         // Invoke local refresh directly, no reason to send RPCs to self
-                                        fmt.Println("Sending refresh to self")
+                                        //fmt.Println("Sending refresh to self")
                                         network.localNode.Refresh(&amp;dataHash)
                                 }</span> else<span class="cov0" title="0"> {
-                                        fmt.Println("Sending refresh msg to", c.ID.String())
+                                        //fmt.Println("Sending refresh msg to", c.ID.String())
                                         network.refreshRPC(c, &amp;dataHash)
                                 }</span>
                         }

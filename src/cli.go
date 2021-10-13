@@ -92,7 +92,11 @@ func handleDualInput(command string, value string, network *Network) string {
 	case "put":
 		return put(value, network)
 	case "join":
-		IP := net.ParseIP(value)[12:]
+		IP := net.ParseIP(value)
+		if IP == nil {
+			return "Invalid IP address format"
+		}
+		IP = IP[12:]
 		ID := NewKademliaIDFromIP(&IP)
 		err := network.Join(ID, value)
 		if err == nil {
@@ -101,10 +105,16 @@ func handleDualInput(command string, value string, network *Network) string {
 			return err.Error()
 		}
 	case "get":
-		outputNodeID, outputContent := get(value, network)
+		if len(value) != 40 {
+			return "Invalid hash length"
+		}
+			outputNodeID, outputContent := get(value, network)
 		outputString := ("NodeID: " + outputNodeID + "  Content: " + outputContent)
 		return outputString
 	case "forget":
+		if len(value) != 40 {
+			return "Invalid hash length"
+		}
 		network.localNode.Forget(NewKademliaID(value))
 		return "Forgot data with hash: " + value
 	default:

@@ -4,6 +4,7 @@ import (
 	"testing"
 )
 
+// This is basically the same function as in the given code.
 func TestRoutingTable(t *testing.T) {
 	result := []Contact{
 		NewContact(NewKademliaID("0000000000000000000000000000000000000000"), ""),
@@ -24,6 +25,7 @@ func TestRoutingTable(t *testing.T) {
 	rt.AddContact(result[6])
 	rt.AddContact(result[0])
 
+	// Test the ordering of all contacts
 	t.Run("Closest", func(t *testing.T) {
 		contacts := rt.FindClosestContacts(NewKademliaID("0000000000000000000000000000000000000000"), 20)
 

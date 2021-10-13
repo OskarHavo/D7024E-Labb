@@ -22,6 +22,7 @@ func TestHelp(t *testing.T) {
 	output1 := help()
 	groundtruth1 := "Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
 		"Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
+		"Forget - Takes the hash of the object that is no longer to be refreshed"     + "\n" +
 		"Exit -Terminates the node. " + "\n"
 	if output1 != groundtruth1 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output1, groundtruth1)
@@ -34,6 +35,7 @@ func TestHandleSingleInput(t *testing.T) {
 	output1 := handleSingleInput("help", 1)
 	groundtruth1 := "Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
 		"Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
+		"Forget - Takes the hash of the object that is no longer to be refreshed"     + "\n" +
 		"Exit -Terminates the node. " + "\n"
 	if output1 != groundtruth1 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output1, groundtruth1)
@@ -86,6 +88,7 @@ func TestParseInput(t *testing.T) {
 	output_1 := parseInput("help", nil)
 	groundTruth_1 := "Put - Takes a single argument, the contents of the file you are uploading, and outputs the hash of the object, if it could be uploaded successfully." + "\n" +
 		"Get - Takes a hash as its only argument, and outputs the contents of the object and the node it was retrieved from, if it could be downloaded successfully. " + "\n" +
+		"Forget - Takes the hash of the object that is no longer to be refreshed"     + "\n" +
 		"Exit -Terminates the node. " + "\n"
 	if output_1 != groundTruth_1 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_1, groundTruth_1)
@@ -153,9 +156,23 @@ func TestHandleDualInput(t *testing.T) {
 		if output != groundTruth {
 			t.Errorf("Answer was incorrect, got: %s, want: %s.", output, groundTruth)
 		} else {
-			fmt.Println("TestHandleDualInput - Test join = Passed") // -v must be added to go test for prints to appear.
+			fmt.Println("TestHandleDualInput - Test join fail = Passed") // -v must be added to go test for prints to appear.
 		}
 
+	}
+	// Test join with invalid IP
+	{
+		ip2 := net.ParseIP("0.0.0.1")
+		ms2 := NewMessageService(true, &net.UDPAddr{IP: ip2})
+		net2 := NewNetwork(&ip2, ms2)
+
+		output := handleDualInput("join","00000",&net2)
+		groundTruth := "Invalid IP address format"
+		if output != groundTruth {
+			t.Errorf("Answer was incorrect, got: %s, want: %s.", output, groundTruth)
+		} else {
+			fmt.Println("TestHandleDualInput - Test join fail = Passed") // -v must be added to go test for prints to appear.
+		}
 	}
 
 	// Test Put
@@ -183,6 +200,19 @@ func TestHandleDualInput(t *testing.T) {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_3, groundTruth_3)
 	} else {
 		fmt.Println("TestHandleDualInput - Test Put = Passed") // -v must be added to go test for prints to appear.
+	}
+
+	// Test Get
+	{
+		inputString := "test"
+		put(inputString, &network)
+		output := handleDualInput("get", "0000000000", &network)
+		groundTruth := "Invalid hash length"
+		if output != groundTruth {
+			t.Errorf("Answer was incorrect, got: %s, want: %s.", output_3, groundTruth_3)
+		} else {
+			fmt.Println("TestHandleDualInput - Test Put = Passed") // -v must be added to go test for prints to appear.
+		}
 	}
 }
 
@@ -221,12 +251,12 @@ func TestGet(t *testing.T) {
 			}
 		}
 	}
-	net:= NewNetwork(&testIP,NewMessageService(false,nil))
+	network:= NewNetwork(&testIP,NewMessageService(false,nil))
 
 	// Test Find Valid Input
 	inputString := "test"
-	input_1 := put(inputString, &net)
-	_, output_1_2 := get(input_1, &net)
+	input_1 := put(inputString, &network)
+	_, output_1_2 := get(input_1, &network)
 	groundTruth_1 := inputString
 	if output_1_2 != groundTruth_1 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_1_2, groundTruth_1)
@@ -236,12 +266,46 @@ func TestGet(t *testing.T) {
 
 	// Test Find Null Input
 	inputHash := "0000000000000000000000000000000000000000"
-	_, output_2_2 := get(inputHash, &net)
+	_, output_2_2 := get(inputHash, &network)
 	groundTruth_2 := "Could not find node or data in the network"
 	if output_2_2 != groundTruth_2 {
 		t.Errorf("Answer was incorrect, got: %s, want: %s.", output_2_2, groundTruth_2)
 	} else {
-		fmt.Println("GET - Find Null Input = Passed")
+		fmt.Println("GET - Find Null Input and null nodes = Passed")
+	}
+
+	// Test with nodes and null input
+	{
+		ip1 := net.ParseIP("0.0.0.0")
+		ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
+		ip2 := net.ParseIP("0.0.0.1")
+		ms2 := NewMessageService(true,&net.UDPAddr{IP: ip2})
+
+		net1 := NewNetwork(&ip1,ms1)
+		net2 := NewNetwork(&ip2,ms2)
+
+		net1_chan := make(chan bool)
+		go func() {
+			net1.Listen()
+			net1_chan <- true
+		}()
+		time.Sleep(50*time.Millisecond)
+		net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
+
+		data := "Hello world!"
+		_,answer := get(NewKademliaIDFromData(data).String(),&net2)
+		groundTruth := "Hashvalue Does Not Exist In The Network"
+
+		if answer != groundTruth {
+			t.Errorf("Answer was incorrect, got: %s, want: %s.", answer, groundTruth)
+		} else {
+			fmt.Println("GET - Find Null Input with nodes = Passed")
+		}
+
+
+		net1.shutdown()
+		<-net1_chan
+		global_map = make(map[string] chan string)
 	}
 }
 

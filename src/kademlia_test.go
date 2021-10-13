@@ -57,3 +57,58 @@ func TestLookupData(t *testing.T) {
 		fmt.Println("TestLookupData - TestLookupData = Passed") // -v must be added to go test for prints to appear.
 	}
 }
+
+func TestNode_Delete(t *testing.T) {
+	type fields struct {
+		contact Contact
+	}
+	type args struct {
+		hash *KademliaID
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		{"delete", fields{NewContact(NewKademliaIDFromData("0.0.0.0"),"")},args{NewKademliaIDFromData("hello")}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kademlia := NewNode(tt.fields.contact)
+			kademlia.Store([]byte{0,0,0,0},tt.args.hash)
+			kademlia.Delete(tt.args.hash)
+
+			if data := kademlia.LookupData(tt.args.hash);data != nil {
+				t.Errorf("Delete() = %v, want %v", string(data),nil)
+			}
+		})
+	}
+}
+
+func TestNode_Forget(t *testing.T) {
+	type fields struct {
+		contact Contact
+	}
+	type args struct {
+		hash *KademliaID
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		{"forget", fields{NewContact(NewKademliaIDFromData("0.0.0.0"),"")},args{NewKademliaIDFromData("hello")}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kademlia := NewNode(tt.fields.contact)
+			kademlia.Store([]byte{0,0,0,0},tt.args.hash)
+			kademlia.refreshContacts[*tt.args.hash] = []Contact{tt.fields.contact}
+			kademlia.Forget(tt.args.hash)
+
+			if kademlia.refreshContacts[*tt.args.hash] != nil {
+				t.Errorf("Forget() = %v, want %v", kademlia.refreshContacts[*tt.args.hash],nil)
+			}
+		})
+	}
+}

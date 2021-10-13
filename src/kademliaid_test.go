@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+// Just make sure we haven't changed anything in the kademlia function.
+// This calculates an ID manually and verifies it.
 func TestNewKademliaID(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	input := ""
@@ -21,6 +23,8 @@ func TestNewKademliaID(t *testing.T) {
 	}
 }
 
+// Just make sure we haven't changed anything in the kademlia function.
+// This calculates an ID manually and verifies it.
 func TestNewKademliaIDFromData(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	var input string

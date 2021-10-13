@@ -80,8 +80,7 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, add
 	bucket := network.localNode.LookupContact(targetID, k + 1)
 	bucket = removeSelfOrTail(requesterID, bucket, len(bucket) == k + 1)
 
-	fmt.Println("Received a FIND_NODE request from node", requesterID,
-		"with a target ID", targetID)
+	//fmt.Println("Received a FIND_NODE request from node", requesterID, "with a target ID", targetID)
 
 	// 1 byte for type of msg, 1 byte for number of contacts
 	var reply = make([]byte, HEADER_LEN+BUCKET_HEADER_LEN+(ID_LEN+IP_LEN)*len(bucket))
@@ -117,9 +116,9 @@ func (network *Network) sendFindNodeAck(msg *[]byte, connection *Connection, add
 func (network *Network) unpackMessage(msg []byte, connection Connection, address *net.UDPAddr) error {
 	switch messageType := msg[0]; messageType {
 	case PING:
-		requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+		//requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 
-		fmt.Println("Received a PING request from node", requesterID.String())
+		//fmt.Println("Received a PING request from node", requesterID.String())
 		reply := make([]byte, HEADER_LEN)
 		reply[0] = PING_ACK
 
@@ -137,7 +136,7 @@ func (network *Network) unpackMessage(msg []byte, connection Connection, address
 		// REC:  [MSG TYPE, REQUESTER ID, HASH]
 		// SEND: [MSG TYPE, REQUESTER ID, BUCKET SIZE, BUCKET:[ID, IP]]
 		//   OR  [MSG TYPE, DATA]
-		fmt.Println("Received a FIND_DATA request")
+		//fmt.Println("Received a FIND_DATA request")
 		hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN : HEADER_LEN+ID_LEN+ID_LEN])
 		data := network.localNode.LookupData(hash)
 		if data != nil {
@@ -157,10 +156,10 @@ func (network *Network) unpackMessage(msg []byte, connection Connection, address
 		// Message format:
 		// REC: [MSG TYPE, REQUESTER ID, HASH, DATA...]
 		// SEND: nothing
-		requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+		//requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 		hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
 		data := msg[HEADER_LEN+ID_LEN+ID_LEN:MAX_PACKET_SIZE]
-		fmt.Println("Received a STORE request from node", requesterID.String())
+		//fmt.Println("Received a STORE request from node", requesterID.String())
 
 		network.localNode.Store(data, hash)
 		return nil
@@ -168,9 +167,9 @@ func (network *Network) unpackMessage(msg []byte, connection Connection, address
 		// Message format:
 		// SEND: [MSG TYPE, REQUESTER ID, REFRESH HASH]
 		// REC: nothing
-		requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
+		//requesterID := (*KademliaID)(msg[HEADER_LEN:HEADER_LEN+ID_LEN])
 		hash := (*KademliaID)(msg[HEADER_LEN+ID_LEN:HEADER_LEN+ID_LEN+ID_LEN])
-		fmt.Println("Received a REFRESH request from node", requesterID.String())
+		//fmt.Println("Received a REFRESH request from node", requesterID.String())
 
 		network.localNode.Refresh(hash)
 		return nil
@@ -199,7 +198,7 @@ func (network *Network) Listen() {
 				ID := (*KademliaID)(msg[HEADER_LEN : HEADER_LEN+ID_LEN])
 
 				contact := NewContact(ID, addr.IP.To4().String())
-				network.kickTheBucket(&contact)
+				network.localNode.routingTable.KickTheBucket(&contact,network.Ping)
 
 				network.unpackMessage(msg, conn, addr)
 				conn.Close()
@@ -241,8 +240,6 @@ func (network *Network) Ping(contact *Contact) bool {
 		fmt.Println("Could not establish connection when pinging node " + contact.ID.String())
 		fmt.Println(err.Error())
 		return false
-	} else {
-		fmt.Println("Connection established to " + remoteAddr.String() + "!")
 	}
 
 	// Setup msg and send
@@ -264,7 +261,7 @@ func (network *Network) Ping(contact *Contact) bool {
 	duration := time.Since(start)
 
 	// Update routing table with the contact that we pinged
-	network.kickTheBucket(contact)
+	network.localNode.routingTable.KickTheBucket(contact,network.Ping)
 
 	if msg[0] == PING_ACK {
 		fmt.Println("Successful ping to " + contact.ID.String() + " took " + strconv.FormatInt(duration.Milliseconds(),
@@ -372,19 +369,20 @@ func (network *Network) DataLookup(hash *KademliaID) ([]byte, []Contact) {
 // Store sends a store msg to the 20th closest nodes a bucket
 func (network *Network) Store(data []byte, hash *KademliaID) {
 	var nodes = network.NodeLookup(hash) // Get ALL nodes that are closest to the hash value
-	fmt.Println("Storing data in " + strconv.FormatInt(int64(len(nodes)),10) + " external nodes")
 	network.localNode.routingTable.me.CalcDistance(hash)
 	if len(nodes) < k {
+		fmt.Println("Storing data on local node")
 		nodes = append(nodes, network.localNode.routingTable.me)
 	} else if network.localNode.routingTable.me.distance.Less(nodes[len(nodes)-1].distance) {
+		fmt.Println("Storing data on local node")
 		// If the locals node distance is less than the last node in the bucket,
 		// Im actually supposed to be in the bucket and not that node.
 		nodes[len(nodes)-1] = network.localNode.routingTable.me
 	}
+	fmt.Println("Storing data in " + strconv.FormatInt(int64(len(nodes)),10) + " total nodes")
 	for _,contact := range nodes { // What type of syntax is this??
 		if network.localNode.routingTable.me.ID == contact.ID {
 			// No need to send a network request. Send the RPC directly to the local node thread.
-			fmt.Println("Storing data on local node")
 			network.localNode.Store(data, hash)
 		} else {
 			// This is easily done async because we don't have to care what happens after!
@@ -431,7 +429,7 @@ func (network *Network) findNodeRPC(contact *Contact, targetID *KademliaID) ([]C
 
 		kClosestReply := handleBucketReply(&reply)
 
-		network.kickTheBucket(contact)
+		network.localNode.routingTable.KickTheBucket(contact,network.Ping)
 		return kClosestReply.GetContactsAndCalcDistances(targetID), true
 	}
 }
@@ -450,7 +448,7 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 		fmt.Println("Could not establish connection when sending findDataRPC to " + contact.ID.String())
 		return nil, nil, false
 	} else {
-		fmt.Println("Sending FIND_DATA to node ", contact.ID.String())
+		//fmt.Println("Sending FIND_DATA to node ", contact.ID.String())
 
 		msg := make([]byte, HEADER_LEN+ID_LEN+ID_LEN)
 		msg[0] = FIND_DATA
@@ -469,7 +467,7 @@ func (network *Network) findDataRPC(contact *Contact, hash *KademliaID) ([]byte,
 			return nil, nil, false
 		}
 
-		network.kickTheBucket(contact)
+		network.localNode.routingTable.KickTheBucket(contact,network.Ping)
 
 		if reply[0] == FIND_DATA_ACK_FAIL {
 			// Message format:
@@ -514,21 +512,6 @@ func (network *Network) storeDataRPC(contact Contact, hash *KademliaID, data []b
 		conn.Write(storeMessage)
 	}
 	conn.Close()
-}
-
-// Check if a bucket is full and then kick one node if it does not respond to a ping message.
-// Call this function whenever you want to add a new node to the routing table. The node can either
-// already exist in a bucket or be a new node.
-func (network *Network) kickTheBucket(contact *Contact) {
-	// Find the appropriate bucket and "kick" it
-	network.localNode.routingTable.KickTheBucket(contact,network.Ping)
-
-	// LOGGING, TEMP
-	fmt.Println("Routing table state after kicking the bucket:")
-	contacts := network.localNode.routingTable.FindClosestContacts(network.localNode.routingTable.me.ID, 9999)
-	for _, c := range contacts {
-		fmt.Println("<" + c.ID.String() + ", " + c.Address + ">")
-	}
 }
 
 // We don't want to send back the requester its own ID so that it has itself in its own bucket.

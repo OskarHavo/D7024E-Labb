@@ -47,10 +47,10 @@ func (network *Network) Remember() {
 			for _, c := range contacts {
 				if c.ID.Equals(network.localNode.routingTable.me.ID) {
 					// Invoke local refresh directly, no reason to send RPCs to self
-					fmt.Println("Sending refresh to self")
+					//fmt.Println("Sending refresh to self")
 					network.localNode.Refresh(&dataHash)
 				} else {
-					fmt.Println("Sending refresh msg to", c.ID.String())
+					//fmt.Println("Sending refresh msg to", c.ID.String())
 					network.refreshRPC(c, &dataHash)
 				}
 			}

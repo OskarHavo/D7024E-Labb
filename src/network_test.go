@@ -390,7 +390,9 @@ func TestPostIterationProcessing(t *testing.T) {
 	}
 }
 
+// Check if the listen function can be terminated from another thread.
 func TestNetwork_Listen(t *testing.T) {
+	// The home IP and network message simulator
 	type fields struct {
 		ip *net.IP
 		ms_service *Message_service
@@ -409,7 +411,7 @@ func TestNetwork_Listen(t *testing.T) {
 				network.Listen()
 				wait <- true
 			}()
-			time.Sleep(500*time.Millisecond)
+			time.Sleep(500*time.Millisecond)	// Give the network some time to boot up
 			network.shutdown()
 			select {
 			case <- wait:
@@ -421,15 +423,19 @@ func TestNetwork_Listen(t *testing.T) {
 	}
 }
 
+// Try to join another node with both valid and invalid information
 func TestNetwork_Join(t *testing.T) {
+	// Set up IP addresses
 	ip1 := net.ParseIP("0.0.0.0")
 	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
 	ip2 := net.ParseIP("0.0.0.1")
 	ms2 := NewMessageService(true,&net.UDPAddr{IP: ip2})
 
+	// create two networks
 	net1 := NewNetwork(&ip1,ms1)
 	net2 := NewNetwork(&ip2,ms2)
 
+	// Start to listen on one network
 	net1_chan := make(chan bool)
 	go func() {
 		net1.Listen()
@@ -438,6 +444,7 @@ func TestNetwork_Join(t *testing.T) {
 	time.Sleep(50*time.Millisecond)
 	error := net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
 
+	// Finally join the network.
 	if error != nil {
 		t.Errorf("Join() = %v, want %v", "Failed to join", "Succesful join")
 	}
@@ -447,6 +454,7 @@ func TestNetwork_Join(t *testing.T) {
 	global_map = make(map[string] chan string)
 	net2 = NewNetwork(&ip2,ms2)
 
+	// This should not work. The network has already shut down.
 	error = net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
 	if error == nil {
 		t.Errorf("Join() = %v, want %v", "Succesful join","Failed to join")
@@ -455,18 +463,21 @@ func TestNetwork_Join(t *testing.T) {
 	global_map = make(map[string] chan string)
 }
 
+// Store some data in a network
 func TestNetwork_Store(t *testing.T) {
+	global_map = make(map[string] chan string)	// don't worry about this thing.
 
-	global_map = make(map[string] chan string)
-
+	// Set up IP addresses
 	ip1 := net.ParseIP("0.0.0.0")
 	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
 	ip2 := net.ParseIP("0.0.0.1")
 	ms2 := NewMessageService(true,&net.UDPAddr{IP: ip2})
 
+	// Set up two networks
 	net1 := NewNetwork(&ip1,ms1)
 	net2 := NewNetwork(&ip2,ms2)
 
+	// Store some valid data
 	data := []byte("Hello world!")
 	net1.Store(data, NewKademliaIDFromData(string(data)))
 	net1_chan := make(chan bool)
@@ -480,12 +491,14 @@ func TestNetwork_Store(t *testing.T) {
 		t.Errorf("Store() failed to create a connection. Check if join passed testing")
 	}
 
+	// Verify that the data has been stored on one node but not the other.
 	result,_ := net2.DataLookup(NewKademliaIDFromData(string(data)))
 
 	if string(result[:12]) != string(data) {
 		t.Errorf("Store() = %v, want %v", string(data),string(result))
 	}
 
+	// Now test with both nodes.
 	data = []byte("Another text")
 	net2.Store(data, NewKademliaIDFromData(string(data)))
 	result,_ = net2.DataLookup(NewKademliaIDFromData(string(data)))
@@ -493,17 +506,18 @@ func TestNetwork_Store(t *testing.T) {
 	if string(result[:12]) != string(data) {
 		t.Errorf("Store() = %v, want %v", string(data),string(result))
 	}
+
+	// Finally shut down
 	net1.shutdown()
 	<-net1_chan
 
 	global_map = make(map[string] chan string)
-
 }
 
 func TestNetwork_NodeLookup(t *testing.T) {
-
 	global_map = make(map[string] chan string)
 
+	// Set up IP addresses.
 	ip1 := net.ParseIP("0.0.0.0")
 	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
 
@@ -513,10 +527,12 @@ func TestNetwork_NodeLookup(t *testing.T) {
 	ip3 := net.ParseIP("0.0.0.2")
 	ms3 := NewMessageService(true,&net.UDPAddr{IP: ip3})
 
+	// Set up networks
 	net1 := NewNetwork(&ip1,ms1)
 	net2 := NewNetwork(&ip2,ms2)
 	net3 := NewNetwork(&ip3,ms3)
 
+	// Start to listen on all 3 networks
 	net1_chan := make(chan bool)
 	go func() {
 		net1.Listen()
@@ -532,6 +548,8 @@ func TestNetwork_NodeLookup(t *testing.T) {
 		net3.Listen()
 		net3_chan <- true
 	}()
+
+	// Now join
 	time.Sleep(50*time.Millisecond)
 	error := net2.Join(NewKademliaIDFromIP(&ip1),"0.0.0.0")
 	if error != nil {
@@ -541,12 +559,14 @@ func TestNetwork_NodeLookup(t *testing.T) {
 	if error != nil {
 		t.Errorf("NodeLookup() failed to create a connection. Check if join passed testing")
 	}
-	contacts := net3.NodeLookup(NewKademliaIDFromIP(&ip1))
 
+	// Try to find a node.
+	contacts := net3.NodeLookup(NewKademliaIDFromIP(&ip1))
 	if len(contacts) != 2 {
 		t.Errorf("NodeLookup() = %v, want %v", len(contacts), 2)
 	}
 
+	// Finally shut down
 	net1.shutdown()
 	net2.shutdown()
 	net3.shutdown()
@@ -558,9 +578,9 @@ func TestNetwork_NodeLookup(t *testing.T) {
 }
 
 func TestNetwork_DataLookup(t *testing.T) {
-
 	global_map = make(map[string] chan string)
 
+	// Set up IP addresses
 	ip1 := net.ParseIP("0.0.0.0")
 	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
 
@@ -570,10 +590,12 @@ func TestNetwork_DataLookup(t *testing.T) {
 	ip3 := net.ParseIP("0.0.0.2")
 	ms3 := NewMessageService(true,&net.UDPAddr{IP: ip3})
 
+	// Set up networks
 	net1 := NewNetwork(&ip1,ms1)
 	net2 := NewNetwork(&ip2,ms2)
 	net3 := NewNetwork(&ip3,ms3)
 
+	// Start to listen for connections
 	net1_chan := make(chan bool)
 	go func() {
 		net1.Listen()
@@ -595,6 +617,7 @@ func TestNetwork_DataLookup(t *testing.T) {
 		t.Errorf("DataLookup() failed to create a connection. Check if join passed testing")
 	}
 
+	// Now store some data on two nodes
 	data := []byte("Hello world!")
 	net1.Store(data, NewKademliaIDFromData(string(data)))
 
@@ -602,6 +625,8 @@ func TestNetwork_DataLookup(t *testing.T) {
 	if error != nil {
 		t.Errorf("DataLookup() failed to create a connection. Check if join passed testing")
 	}
+
+	// Try to find the data on the third node.
 	result,contacts := net3.DataLookup(NewKademliaIDFromData(string(data)))
 	if len(contacts) != 1 {
 		t.Errorf("DataLookup() = %v, want %v", len(contacts), 1)
@@ -609,6 +634,7 @@ func TestNetwork_DataLookup(t *testing.T) {
 		t.Errorf("DataLookup() = %v, want %v", string(result), string(data))
 	}
 
+	// Now store on all 3 nodes and try to find the data.
 	data = []byte("Another hello!")
 	result,contacts = net3.DataLookup(NewKademliaIDFromData(string(data)))
 	if len(contacts) != 2 {
@@ -617,6 +643,8 @@ func TestNetwork_DataLookup(t *testing.T) {
 	if result != nil{
 		t.Errorf("DataLookup() = %v, want %v", string(result), string(data))
 	}
+
+	// Finally shut down
 	net1.shutdown()
 	net2.shutdown()
 	net3.shutdown()
@@ -627,6 +655,7 @@ func TestNetwork_DataLookup(t *testing.T) {
 	global_map = make(map[string] chan string)
 }
 
+// This just checks an invalid message type. Nothing fancy going on here.
 func TestNetwork_unpackMessage(t *testing.T) {
 	ip1 := net.ParseIP("0.0.0.0")
 	ms1 := NewMessageService(true, &net.UDPAddr{IP: ip1})
@@ -658,4 +687,11 @@ func TestNetwork_unpackMessage(t *testing.T) {
 	net1.shutdown()
 	<-net1_chan
 	global_map = make(map[string] chan string)
+
+	{
+		var conn = Connection{}
+		if err := net1.unpackMessage([]byte{255},conn,nil); err == nil {
+			t.Errorf("unpackMessage() = %v, want %v", err.Error(), "received unknown request")
+		}
+	}
 }
